@@ -286,6 +286,7 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 	const campaignData = useBoundStore(s => s.campaignData);
 	const searchData = useBoundStore(s => s.searchData);
 	const acceptedTgIds = useBoundStore(s => s.acceptedTgIds);
+	const storedQuery = useBoundStore(s => s.query);
 	const setCampaignContext = useBoundStore(s => s.setCampaignContext);
 
 	const bannerImages: string[] = useMemo(() => {
@@ -453,6 +454,7 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 				const freshCollection =
 					await getCollectionContent(collectionId);
 				setCampaignContext(
+					storedQuery,
 					searchData,
 					acceptedTgIds,
 					freshCollection,
@@ -468,6 +470,7 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 			setIsSaving(false);
 		}
 	}, [
+		storedQuery,
 		searchData,
 		collectionData,
 		campaignData,

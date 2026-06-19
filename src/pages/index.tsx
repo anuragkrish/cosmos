@@ -47,25 +47,34 @@ function ThinkingDots() {
 }
 
 export default function Home() {
-	const [screen, setScreen] = useState<Screen>('chat');
-	const [input, setInput] = useState('');
-	const [query, setQuery] = useState('');
+	const setCampaignContext = useBoundStore(s => s.setCampaignContext);
+	const clearCampaign = useBoundStore(s => s.clearCampaign);
+	const storedQuery = useBoundStore(s => s.query);
+	const storedSearchData = useBoundStore(s => s.searchData);
+	const storedAcceptedTgIds = useBoundStore(s => s.acceptedTgIds);
+
+	// Restore results screen if campaign data exists in store (e.g. navigating back from studio)
+	const hasStoredCampaign = storedSearchData !== null && storedQuery !== '';
+
+	const [screen, setScreen] = useState<Screen>(
+		hasStoredCampaign ? 'results' : 'chat',
+	);
+	const [input, setInput] = useState(storedQuery);
+	const [query, setQuery] = useState(storedQuery);
 
 	// API state
 	const [isLoading, setIsLoading] = useState(false);
 	const [apiError, setApiError] = useState<string | null>(null);
 	const [apiResponse, setApiResponse] =
-		useState<SearchContentApiResponse | null>(null);
+		useState<SearchContentApiResponse | null>(storedSearchData);
 
 	// Selection & submission state
-	const [acceptedIds, setAcceptedIds] = useState<number[]>([]);
+	const [acceptedIds, setAcceptedIds] =
+		useState<number[]>(storedAcceptedTgIds);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [submitStep, setSubmitStep] = useState<'create' | 'fetch'>('create');
 	const [submitError, setSubmitError] = useState<string | null>(null);
-	const [assetsRevealed, setAssetsRevealed] = useState(false);
-
-	const setCampaignContext = useBoundStore(s => s.setCampaignContext);
-	const clearCampaign = useBoundStore(s => s.clearCampaign);
+	const [assetsRevealed, setAssetsRevealed] = useState(hasStoredCampaign);
 
 	const assetsRef = useRef<HTMLDivElement>(null);
 
@@ -135,6 +144,7 @@ export default function Home() {
 
 			// Persist to store so preview + studio pages can seed their props
 			setCampaignContext(
+				query,
 				apiResponse,
 				acceptedIds,
 				collectionData,
