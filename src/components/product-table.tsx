@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
 	type ColumnDef,
 	type RowData,
@@ -117,6 +118,192 @@ function SortableHeader({
 				)}
 			</span>
 		</button>
+	);
+}
+
+// ─── AI insight popup (rendered via portal) ──────────────────────────────────
+
+function AiInsightPopup({
+	id,
+	rank,
+	reason,
+	source,
+	onClose,
+}: {
+	id: number;
+	rank: number;
+	reason?: string;
+	source?: CompetitorSource;
+	onClose: () => void;
+}) {
+	const sourceDomain = source
+		? new URL(source.url).hostname.replace('www.', '')
+		: null;
+
+	// Close on Escape
+	useEffect(() => {
+		const handler = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') onClose();
+		};
+		document.addEventListener('keydown', handler);
+		return () => document.removeEventListener('keydown', handler);
+	}, [onClose]);
+
+	return (
+		<div
+			style={{
+				position: 'fixed',
+				inset: 0,
+				zIndex: 9999,
+				display: 'flex',
+				alignItems: 'center',
+				justifyContent: 'center',
+				background: 'rgba(0,0,0,0.35)',
+			}}
+			onClick={onClose}
+		>
+			<div
+				role='dialog'
+				aria-modal='true'
+				onClick={e => e.stopPropagation()}
+				style={{
+					background: '#fff',
+					borderRadius: 14,
+					padding: '20px 22px',
+					width: 340,
+					boxShadow: '0 8px 40px rgba(0,0,0,0.22)',
+					border: '1px solid rgba(124,58,237,0.12)',
+				}}
+			>
+				{/* header */}
+				<div
+					style={{
+						display: 'flex',
+						alignItems: 'center',
+						justifyContent: 'space-between',
+						marginBottom: 14,
+					}}
+				>
+					<div
+						style={{
+							display: 'flex',
+							alignItems: 'center',
+							gap: 8,
+						}}
+					>
+						<span
+							style={{
+								fontSize: '10px',
+								fontWeight: 700,
+								padding: '2px 7px',
+								borderRadius: 99,
+								background:
+									'linear-gradient(135deg, #7c3aed, #4f46e5)',
+								color: '#fff',
+								letterSpacing: '0.02em',
+							}}
+						>
+							#{rank} AI Pick
+						</span>
+						{sourceDomain && (
+							<span
+								style={{
+									fontSize: '10px',
+									fontWeight: 600,
+									padding: '2px 7px',
+									borderRadius: 99,
+									background: '#f3f0ff',
+									color: '#5b21b6',
+								}}
+							>
+								{sourceDomain}
+							</span>
+						)}
+					</div>
+					<button
+						onClick={onClose}
+						aria-label='Close'
+						style={{
+							background: 'none',
+							border: 'none',
+							cursor: 'pointer',
+							color: '#9ca3af',
+							padding: 2,
+							display: 'flex',
+							borderRadius: 4,
+						}}
+					>
+						<XIcon style={{ width: 15, height: 15 }} />
+					</button>
+				</div>
+
+				{/* reason */}
+				{reason && (
+					<p
+						style={{
+							fontSize: '13px',
+							lineHeight: 1.6,
+							color: '#111827',
+							margin: 0,
+							marginBottom: source ? 14 : 0,
+						}}
+					>
+						{reason}
+					</p>
+				)}
+
+				{/* competitor source link */}
+				{source && (
+					<a
+						href={source.url}
+						target='_blank'
+						rel='noopener noreferrer'
+						style={{
+							display: 'flex',
+							alignItems: 'flex-start',
+							gap: 8,
+							padding: '10px 12px',
+							borderRadius: 9,
+							background: '#f8f5ff',
+							border: '1px solid rgba(124,58,237,0.15)',
+							textDecoration: 'none',
+						}}
+					>
+						<ExternalLinkIcon
+							style={{
+								width: 13,
+								height: 13,
+								color: '#7c3aed',
+								flexShrink: 0,
+								marginTop: 2,
+							}}
+						/>
+						<div>
+							<div
+								style={{
+									fontSize: '11px',
+									fontWeight: 600,
+									color: '#5b21b6',
+									marginBottom: 2,
+								}}
+							>
+								{sourceDomain}
+							</div>
+							<div
+								style={{
+									fontSize: '11px',
+									color: '#6d28d9',
+									lineHeight: 1.4,
+									wordBreak: 'break-word',
+								}}
+							>
+								{source.title}
+							</div>
+						</div>
+					</a>
+				)}
+			</div>
+		</div>
 	);
 }
 
@@ -943,158 +1130,20 @@ export function ProductTable({
 				</span>
 			</div>
 
-			{/* AI insight popup — fixed so it escapes the overflow container */}
+			{/* AI insight popup — rendered via portal so it sits directly on body,
+			    escaping any parent transform/filter stacking contexts */}
 			{openInfoId !== null &&
-				(() => {
-					const reason = aiReasons[openInfoId];
-					const source = aiSources[openInfoId];
-					const rank = aiPicks.indexOf(openInfoId) + 1;
-					const sourceDomain = source
-						? new URL(source.url).hostname.replace('www.', '')
-						: null;
-					return (
-						<div
-							style={{
-								position: 'fixed',
-								inset: 0,
-								zIndex: 100,
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								background: 'rgba(0,0,0,0.25)',
-								backdropFilter: 'blur(2px)',
-							}}
-							onClick={() => setOpenInfoId(null)}
-						>
-							<div
-								onClick={e => e.stopPropagation()}
-								style={{
-									background: '#fff',
-									borderRadius: 14,
-									padding: '20px 22px',
-									width: 340,
-									boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
-									border: '1px solid rgba(124,58,237,0.12)',
-								}}
-							>
-								{/* header */}
-								<div className='flex items-center justify-between mb-3'>
-									<div className='flex items-center gap-2'>
-										<span
-											style={{
-												fontSize: '10px',
-												fontWeight: 700,
-												padding: '2px 7px',
-												borderRadius: 99,
-												background:
-													'linear-gradient(135deg, #7c3aed, #4f46e5)',
-												color: '#fff',
-												letterSpacing: '0.02em',
-											}}
-										>
-											#{rank} AI Pick
-										</span>
-										{source && (
-											<span
-												style={{
-													fontSize: '10px',
-													fontWeight: 600,
-													padding: '2px 7px',
-													borderRadius: 99,
-													background: '#f3f0ff',
-													color: '#5b21b6',
-													textTransform: 'capitalize',
-												}}
-											>
-												{sourceDomain}
-											</span>
-										)}
-									</div>
-									<button
-										onClick={() => setOpenInfoId(null)}
-										style={{
-											background: 'none',
-											border: 'none',
-											cursor: 'pointer',
-											color: 'var(--color-semantic-text-grey-3)',
-											padding: 2,
-											display: 'flex',
-										}}
-									>
-										<XIcon
-											style={{ width: 15, height: 15 }}
-										/>
-									</button>
-								</div>
-
-								{/* reason */}
-								{reason && (
-									<p
-										style={{
-											fontSize: '13px',
-											lineHeight: 1.55,
-											color: 'var(--color-semantic-surface-dark-black)',
-											marginBottom: source ? 14 : 0,
-										}}
-									>
-										{reason}
-									</p>
-								)}
-
-								{/* competitor source link */}
-								{source && (
-									<a
-										href={source.url}
-										target='_blank'
-										rel='noopener noreferrer'
-										style={{
-											display: 'flex',
-											alignItems: 'flex-start',
-											gap: 8,
-											padding: '10px 12px',
-											borderRadius: 9,
-											background: '#f8f5ff',
-											border: '1px solid rgba(124,58,237,0.15)',
-											textDecoration: 'none',
-										}}
-									>
-										<ExternalLinkIcon
-											style={{
-												width: 13,
-												height: 13,
-												color: '#7c3aed',
-												flexShrink: 0,
-												marginTop: 2,
-											}}
-										/>
-										<div>
-											<div
-												style={{
-													fontSize: '11px',
-													fontWeight: 600,
-													color: '#5b21b6',
-													marginBottom: 2,
-												}}
-											>
-												{sourceDomain}
-											</div>
-											<div
-												style={{
-													fontSize: '11px',
-													color: '#6d28d9',
-													lineHeight: 1.4,
-													wordBreak: 'break-all',
-												}}
-											>
-												{source.title}
-											</div>
-										</div>
-									</a>
-								)}
-							</div>
-						</div>
-					);
-				})()}
+				typeof document !== 'undefined' &&
+				createPortal(
+					<AiInsightPopup
+						id={openInfoId}
+						rank={aiPicks.indexOf(openInfoId) + 1}
+						reason={aiReasons[openInfoId]}
+						source={aiSources[openInfoId]}
+						onClose={() => setOpenInfoId(null)}
+					/>,
+					document.body,
+				)}
 		</div>
 	);
 }
