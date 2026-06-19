@@ -3,6 +3,8 @@ import type {
 	TCampaignDiscountBanner,
 } from '@headout/espeon/components/CampaignCollectionPage';
 
+const BASE_URL = 'https://poc-shv.api.dev-headout.com/api/v6/ai';
+
 export interface SearchContentBanner {
 	title: string;
 	description: string;
@@ -82,16 +84,369 @@ export interface SearchContentApiResponse {
 export async function fetchCampaignContent(
 	prompt: string,
 ): Promise<SearchContentApiResponse> {
-	const res = await fetch(
-		'https://poc-shv.api.dev-headout.com/api/v6/ai/search-content',
-		{
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ prompt }),
-		},
-	);
+	const res = await fetch(`${BASE_URL}/search-content`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ prompt }),
+	});
 	if (!res.ok) throw new Error(`Search content API error: ${res.status}`);
 	return res.json();
+}
+
+export interface CreateCollectionPayload {
+	name: string;
+	displayName: string;
+	city: string;
+	content: string;
+	contentDescription: string;
+	tourGroups: number[];
+	urlSlug: string;
+	heroImageUrl: string;
+	cardImageUrl: string;
+	iconId: number;
+}
+
+export interface CreateCollectionResponse {
+	id?: number | string;
+	collectionId?: number | string;
+	[key: string]: unknown;
+}
+
+export async function createCollectionContent(
+	payload: CreateCollectionPayload,
+): Promise<CreateCollectionResponse> {
+	const res = await fetch(`${BASE_URL}/collection-content`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(payload),
+	});
+	if (!res.ok) throw new Error(`Collection content API error: ${res.status}`);
+	return res.json();
+}
+
+export interface CollectionContentResponse {
+	id?: number;
+	collectionId?: number;
+	content?: string;
+	[key: string]: unknown;
+}
+
+export async function getCollectionContent(
+	collectionId: number | string,
+): Promise<CollectionContentResponse> {
+	const res = await fetch(`${BASE_URL}/collection-content/${collectionId}`, {
+		headers: { 'Content-Type': 'application/json' },
+	});
+	if (!res.ok) throw new Error(`Get collection API error: ${res.status}`);
+	return res.json();
+}
+
+export interface CampaignDataResponse {
+	tourGroups?: SearchContentTourGroup[];
+	[key: string]: unknown;
+}
+
+export async function getCampaignData(
+	collectionId: number | string,
+): Promise<CampaignDataResponse> {
+	const res = await fetch(
+		`${BASE_URL}/campaign-data/collection/${collectionId}`,
+		{ headers: { 'Content-Type': 'application/json' } },
+	);
+	if (!res.ok) throw new Error(`Get campaign data API error: ${res.status}`);
+	return res.json();
+}
+
+export function buildPreviewPropsFromCollection(
+	collectionResponse: CollectionContentResponse,
+	campaignDataResponse: CampaignDataResponse,
+): Omit<
+	TCampaignCollectionPageProps,
+	'currencyList' | 'productCardLabels' | 'isMobile'
+> {
+	// Parse the banner from the stringified content field
+	let banner: SearchContentBanner = {
+		title: '',
+		description: '',
+		images: [],
+	};
+	try {
+		if (collectionResponse.content) {
+			banner = JSON.parse(
+				collectionResponse.content,
+			) as SearchContentBanner;
+		}
+	} catch {
+		// keep default empty banner
+	}
+
+	const allProducts = (campaignDataResponse.tourGroups ??
+		[]) as SearchContentTourGroup[];
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const toProductCard = (tg: SearchContentTourGroup): any => ({
+		id: tg.id,
+		displayName: tg.displayName,
+		language: tg.language,
+		urlSlug: tg.urlSlug,
+		ratings: tg.ratings,
+		descriptors:
+			tg.descriptors?.map(d => ({
+				code: d.code,
+				name: d.name,
+				displayName: d.displayName,
+				iconUrl: d.iconUrl,
+				description: d.description,
+				type: d.type,
+			})) ?? [],
+		medias: tg.medias,
+		listingPrice: tg.listingPrice,
+		primaryCollection: tg.primaryCollection ?? { id: 0, displayName: '' },
+		primaryCategory: tg.primaryCategory ?? { id: 0, displayName: '' },
+		primarySubCategory: tg.primarySubCategory ?? { id: 0, displayName: '' },
+		primaryCity: tg.primaryCity ?? { code: '', displayName: '' },
+		combo: tg.combo ?? false,
+		multiVariant: tg.multiVariant ?? false,
+		flowType: tg.flowType,
+		schedule: tg.schedule,
+		personas: tg.personas,
+		itineraries: tg.itineraries,
+		content: tg.content,
+		minDuration: tg.minDuration,
+		maxDuration: tg.maxDuration,
+		guestCount: tg.guestCount,
+		verticalImageUrl: tg.medias?.[0]?.url,
+	});
+
+	const usedIds = new Set<number>();
+
+	// Weighted rating score: value scaled by log of review count to reward
+	// products with more reviews without completely ignoring high-score newcomers.
+	const ratingScore = (p: SearchContentTourGroup) => {
+		const value = p.ratings?.value ?? 0;
+		const count = p.ratings?.count ?? 0;
+		return value * Math.log10(Math.max(count, 1) + 1);
+	};
+
+	// Step 1: Top Experiences — highest discounted products, max 6, min 4.
+	// Pad with highest-rated (by weighted score) non-discounted products if needed.
+	const discountedSorted = [...allProducts]
+		.filter(p => (p.listingPrice?.bestDiscount ?? 0) > 0)
+		.sort(
+			(a, b) =>
+				(b.listingPrice?.bestDiscount ?? 0) -
+				(a.listingPrice?.bestDiscount ?? 0),
+		);
+	const topExperienceRaw = discountedSorted.slice(0, 6);
+	if (topExperienceRaw.length < 4) {
+		const selectedIds = new Set(topExperienceRaw.map(p => p.id));
+		const extras = [...allProducts]
+			.filter(p => !selectedIds.has(p.id))
+			.sort((a, b) => ratingScore(b) - ratingScore(a));
+		topExperienceRaw.push(...extras.slice(0, 4 - topExperienceRaw.length));
+	}
+	topExperienceRaw.forEach(p => usedIds.add(p.id));
+
+	// Step 2: Top Rated — from remaining pool, sorted by weighted rating score
+	// (value × log(count)) so review volume is factored in. Max 6, min 4.
+	const remainingAfterTopExp = allProducts.filter(p => !usedIds.has(p.id));
+	const ratedSorted = [...remainingAfterTopExp]
+		.filter(p => (p.ratings?.value ?? 0) > 0 && (p.ratings?.count ?? 0) > 0)
+		.sort((a, b) => ratingScore(b) - ratingScore(a));
+	const topRatedRaw = ratedSorted.slice(0, 6);
+	if (topRatedRaw.length < 4) {
+		const ratedIds = new Set(ratedSorted.map(p => p.id));
+		const extras = remainingAfterTopExp
+			.filter(p => !ratedIds.has(p.id))
+			.sort(
+				(a, b) =>
+					(b.listingPrice?.bestDiscount ?? 0) -
+					(a.listingPrice?.bestDiscount ?? 0),
+			);
+		topRatedRaw.push(...extras.slice(0, 4 - topRatedRaw.length));
+	}
+	topRatedRaw.forEach(p => usedIds.add(p.id));
+
+	// Step 3: Upto 30% — from remaining pool, any product with a discount,
+	// sorted descending by discount. Show section only if ≥4 qualify.
+	const remainingAfterTopRated = allProducts.filter(p => !usedIds.has(p.id));
+	const upto30Candidates = [...remainingAfterTopRated]
+		.filter(p => (p.listingPrice?.bestDiscount ?? 0) > 0)
+		.sort(
+			(a, b) =>
+				(b.listingPrice?.bestDiscount ?? 0) -
+				(a.listingPrice?.bestDiscount ?? 0),
+		);
+	const upto30Raw = upto30Candidates.slice(0, 6);
+	const showUpto30 = upto30Raw.length >= 4;
+	if (showUpto30) upto30Raw.forEach(p => usedIds.add(p.id));
+
+	// Step 4: More Offers — all remaining products
+	const moreOffersRaw = allProducts.filter(p => !usedIds.has(p.id));
+
+	const discountBanners: TCampaignDiscountBanner[] = [];
+	if (showUpto30) {
+		const maxDiscount =
+			Math.ceil(
+				Math.max(
+					...upto30Raw.map(p => p.listingPrice?.bestDiscount ?? 0),
+				) / 5,
+			) * 5;
+		discountBanners.push({
+			preText: 'Upto',
+			discountLabel: `${maxDiscount}% off`,
+			products: upto30Raw.map(toProductCard),
+		});
+	}
+	if (moreOffersRaw.length > 0) {
+		discountBanners.push({
+			preText: '',
+			discountLabel: 'More Offers',
+			products: moreOffersRaw.map(toProductCard),
+		});
+	}
+	// Fallback: if both sections are empty, surface all products in More Offers
+	if (discountBanners.length === 0) {
+		discountBanners.push({
+			preText: '',
+			discountLabel: 'More Offers',
+			products: allProducts.map(toProductCard),
+		});
+	}
+
+	return {
+		lang: 'en',
+		headerBanner: {
+			backgroundColor: '#1A1A2E',
+			chipText: '',
+			title: banner.title ?? '',
+			subtitle: banner.description ?? '',
+			ctaText: 'Explore Deals',
+			ctaHref: '#',
+			image: {
+				imageUrl: banner.images?.[0] ?? '',
+				shapeIndex: 0,
+			},
+		},
+		topOffers: {
+			title: 'Top Experiences',
+			products: topExperienceRaw.map(toProductCard),
+		},
+		topRated: {
+			title: 'Top Rated',
+			products: topRatedRaw.map(toProductCard),
+		},
+		discountBanners,
+	};
+}
+
+function toKebabCase(str: string): string {
+	return str
+		.toLowerCase()
+		.replace(/[^a-z0-9\s-]/g, '')
+		.trim()
+		.replace(/\s+/g, '-');
+}
+
+export function buildCollectionPayload(
+	data: SearchContentApiResponse,
+	acceptedTgIds: number[],
+): CreateCollectionPayload {
+	const metaSlug = data.meta?.urlSlug as string | undefined;
+	const derivedSlug = toKebabCase(data.banner?.title ?? 'campaign');
+	const urlSlug = metaSlug ?? derivedSlug;
+
+	return {
+		name: urlSlug,
+		displayName: data.banner?.title ?? 'Campaign',
+		city: data.location?.cityCode ?? '',
+		content: JSON.stringify(data.banner),
+		contentDescription: data.banner?.description ?? '',
+		tourGroups: acceptedTgIds,
+		urlSlug,
+		heroImageUrl: data.banner?.images?.[0] ?? '',
+		cardImageUrl:
+			data.banner?.images?.[1] ?? data.banner?.images?.[0] ?? '',
+		iconId: 5,
+	};
+}
+
+// ─── Studio prop builders ────────────────────────────────────────────────────
+
+export interface PromoStudioProps {
+	brandLine1: string;
+	brandLine2: string;
+	showByHeadout: boolean;
+	title: string;
+	rating: number;
+	showRating: boolean;
+	ctaLabel: string;
+	showCta: boolean;
+	imageSrc: string;
+	bgColor: string;
+	glowColor: string;
+	accentColor: string;
+	textColor: string;
+}
+
+export function buildPromoProps(
+	data: SearchContentApiResponse,
+	acceptedTgIds: number[],
+): PromoStudioProps {
+	const accepted = data.tourGroups.filter(tg =>
+		acceptedTgIds.includes(tg.id),
+	);
+	const first = accepted[0] ?? data.tourGroups[0];
+	const cityWords = (data.location?.cityName ?? '').toUpperCase().split(' ');
+
+	return {
+		brandLine1: cityWords[0] ?? data.location?.cityCode ?? '',
+		brandLine2: cityWords.slice(1).join(' ') || 'TICKETS',
+		showByHeadout: true,
+		title: first?.displayName ?? data.banner?.title ?? '',
+		rating: first?.ratings?.value ?? 0,
+		showRating: (first?.ratings?.value ?? 0) > 0,
+		ctaLabel: 'Book now',
+		showCta: true,
+		imageSrc: first?.medias?.[0]?.url ?? data.banner?.images?.[0] ?? '',
+		bgColor: data.themeColor || '#330066',
+		glowColor: data.themeColor || '#8C12C9',
+		accentColor: '#FFBC00',
+		textColor: '#FFFFFF',
+	};
+}
+
+export interface DestSlideData {
+	type: 'cover' | 'city';
+	[key: string]: unknown;
+}
+
+export function buildDestinationsProps(
+	data: SearchContentApiResponse,
+	acceptedTgIds: number[],
+): { slides: DestSlideData[]; slideIndex: number } {
+	const accepted = data.tourGroups.filter(tg =>
+		acceptedTgIds.includes(tg.id),
+	);
+	const products =
+		accepted.length > 0 ? accepted : data.tourGroups.slice(0, 5);
+
+	const coverSlide: DestSlideData = {
+		type: 'cover',
+		coverLabel: data.location?.cityName ?? '',
+		title: data.banner?.title ?? '',
+		imageSrc: data.banner?.images?.[0] ?? '',
+	};
+
+	const citySlides: DestSlideData[] = products.slice(0, 6).map(tg => ({
+		type: 'city',
+		cityName: tg.displayName,
+		description: '',
+		tipText: '',
+		imageSrc: tg.medias?.[0]?.url ?? '',
+	}));
+
+	return { slides: [coverSlide, ...citySlides], slideIndex: 0 };
 }
 
 // Maps the API response to the props shape CampaignCollectionPage expects.
