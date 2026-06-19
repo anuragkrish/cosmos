@@ -15,10 +15,19 @@ interface StudioHeaderProps {
 	/** Studio title, e.g. "Campaign Posts — Asset Studio" */
 	title: string;
 	/** Right-side download / action button */
-	action: ReactNode;
+	action?: ReactNode;
+	/** Override the default ← Back link behaviour */
+	onBack?: () => void;
+	/** Label for the back link (defaults to "Back") */
+	backLabel?: string;
 }
 
-export function StudioHeader({ title, action }: StudioHeaderProps) {
+export function StudioHeader({
+	title,
+	action,
+	onBack,
+	backLabel = 'Back',
+}: StudioHeaderProps) {
 	return (
 		<header
 			className='
@@ -32,17 +41,31 @@ export function StudioHeader({ title, action }: StudioHeaderProps) {
 		>
 			{/* Left — back link + title */}
 			<div className='flex items-center gap-4'>
-				<Link
-					href='/'
-					className='
-            flex items-center gap-1.5
-            text-[14px] font-light text-[var(--color-semantic-text-grey-3)]
-            hover:text-[var(--color-semantic-surface-dark-black)]
-            transition-colors
-          '
-				>
-					← Back
-				</Link>
+				{onBack ? (
+					<button
+						onClick={onBack}
+						className='
+              flex items-center gap-1.5
+              text-[14px] font-light text-[var(--color-semantic-text-grey-3)]
+              hover:text-[var(--color-semantic-surface-dark-black)]
+              transition-colors cursor-pointer
+            '
+					>
+						← {backLabel}
+					</button>
+				) : (
+					<Link
+						href='/'
+						className='
+              flex items-center gap-1.5
+              text-[14px] font-light text-[var(--color-semantic-text-grey-3)]
+              hover:text-[var(--color-semantic-surface-dark-black)]
+              transition-colors
+            '
+					>
+						← Back
+					</Link>
+				)}
 				<span
 					className='text-[16px] font-semibold text-[var(--color-semantic-surface-dark-black)]'
 					style={{ fontFamily: 'var(--font-hd)' }}
@@ -52,7 +75,7 @@ export function StudioHeader({ title, action }: StudioHeaderProps) {
 			</div>
 
 			{/* Right — action slot (Download button etc.) */}
-			<div>{action}</div>
+			{action != null && <div>{action}</div>}
 		</header>
 	);
 }

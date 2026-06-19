@@ -4,49 +4,179 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
 import { Player } from '@remotion/player';
 import { TEMPLATES } from '../../../remotion/registry';
+import { GUIDE_SLIDE_TYPES } from '../../../remotion/templates/guide/schema';
+import { DEST_SLIDE_TYPES } from '../../../remotion/templates/destinations/schema';
 import { ensureFonts } from '../../../remotion/fonts';
 import { ControlPanel } from './ControlPanel';
-import { SlideListEditor } from './SlideListEditor';
 import { StudioHeader } from './studio-header';
 import { useBoundStore } from '@/stores/store';
-import { buildDestinationsProps } from '@/lib/campaign-api';
+import type { FieldControl } from '../../../remotion/types';
+import type { RecommendPostTemplateResponse } from '@/pages/api/recommend-post-template';
 
-const POST_TEMPLATES = TEMPLATES.filter(t => t.category === 'posts');
+// ─────────────────────────────────────────────────────────────────────────────
+// Types & card catalogue
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Scale 1080×1350 to a comfortable preview size.
-const PREVIEW_W = 405; // 1080 × 0.375
+interface PostSlideCard {
+	id: string;
+	templateId: string;
+	slideType: string;
+	slideTypeName: string;
+	templateName: string;
+	defaultSlide: Record<string, unknown>;
+	fields: FieldControl[];
+	description: string;
+	charLimits: Record<string, number>;
+}
+
+const POST_SLIDE_CARDS: PostSlideCard[] = [
+	{
+		id: 'dest-cover',
+		templateId: 'post-destinations',
+		slideType: 'cover',
+		slideTypeName: 'Cover',
+		templateName: 'Destinations',
+		defaultSlide: DEST_SLIDE_TYPES.find(
+			s => s.type === 'cover',
+		)!.makeDefault() as Record<string, unknown>,
+		fields: DEST_SLIDE_TYPES.find(s => s.type === 'cover')!.fields,
+		description:
+			'Full-bleed cover card for a destinations campaign — great for announcing a city list or travel theme',
+		charLimits: { coverLabel: 35, title: 20 },
+	},
+	{
+		id: 'dest-city',
+		templateId: 'post-destinations',
+		slideType: 'city',
+		slideTypeName: 'City Card',
+		templateName: 'Destinations',
+		defaultSlide: DEST_SLIDE_TYPES.find(
+			s => s.type === 'city',
+		)!.makeDefault() as Record<string, unknown>,
+		fields: DEST_SLIDE_TYPES.find(s => s.type === 'city')!.fields,
+		description:
+			'City spotlight — ideal for highlighting a single destination, attraction, or experience',
+		charLimits: { cityName: 20, description: 120, tipText: 80 },
+	},
+	{
+		id: 'guide-cover',
+		templateId: 'post-guide',
+		slideType: 'cover',
+		slideTypeName: 'Guide Cover',
+		templateName: 'Guide',
+		defaultSlide: GUIDE_SLIDE_TYPES.find(
+			s => s.type === 'cover',
+		)!.makeDefault() as Record<string, unknown>,
+		fields: GUIDE_SLIDE_TYPES.find(s => s.type === 'cover')!.fields,
+		description:
+			'"What to expect" guide intro — perfect for attraction or event preview content',
+		charLimits: { labelLine1: 30, labelLine2: 30, title: 20 },
+	},
+	{
+		id: 'guide-feature',
+		templateId: 'post-guide',
+		slideType: 'feature',
+		slideTypeName: 'Feature',
+		templateName: 'Guide',
+		defaultSlide: GUIDE_SLIDE_TYPES.find(
+			s => s.type === 'feature',
+		)!.makeDefault() as Record<string, unknown>,
+		fields: GUIDE_SLIDE_TYPES.find(s => s.type === 'feature')!.fields,
+		description:
+			'Highlight a single attraction or feature with a bold gradient heading and body copy',
+		charLimits: {
+			headingBefore: 20,
+			headingAccent: 20,
+			headingAfter: 20,
+			body: 120,
+		},
+	},
+	{
+		id: 'guide-imageList',
+		templateId: 'post-guide',
+		slideType: 'imageList',
+		slideTypeName: 'Image List',
+		templateName: 'Guide',
+		defaultSlide: GUIDE_SLIDE_TYPES.find(
+			s => s.type === 'imageList',
+		)!.makeDefault() as Record<string, unknown>,
+		fields: GUIDE_SLIDE_TYPES.find(s => s.type === 'imageList')!.fields,
+		description:
+			'Showcase a list of characters, activities, or items with images and labels',
+		charLimits: {
+			headingBefore: 20,
+			headingAccent: 25,
+			headingAfter: 20,
+			subtext: 55,
+		},
+	},
+	{
+		id: 'guide-featureList',
+		templateId: 'post-guide',
+		slideType: 'featureList',
+		slideTypeName: 'Feature List',
+		templateName: 'Guide',
+		defaultSlide: GUIDE_SLIDE_TYPES.find(
+			s => s.type === 'featureList',
+		)!.makeDefault() as Record<string, unknown>,
+		fields: GUIDE_SLIDE_TYPES.find(s => s.type === 'featureList')!.fields,
+		description:
+			'Dining, shopping, or product comparison — side-by-side list of offerings',
+		charLimits: { headingBefore: 20, headingAccent: 25, headingAfter: 20 },
+	},
+	{
+		id: 'guide-closing',
+		templateId: 'post-guide',
+		slideType: 'closing',
+		slideTypeName: 'Closing',
+		templateName: 'Guide',
+		defaultSlide: GUIDE_SLIDE_TYPES.find(
+			s => s.type === 'closing',
+		)!.makeDefault() as Record<string, unknown>,
+		fields: GUIDE_SLIDE_TYPES.find(s => s.type === 'closing')!.fields,
+		description:
+			'"Know before you go" closing card with info pills — great for practical logistics',
+		charLimits: { heading: 30 },
+	},
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildCampaignSummary(searchData: any, query: string): string {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const products = (searchData?.tourGroups ?? []).slice(0, 5) as any[];
+	const location = (searchData?.location?.cityName as string) ?? '';
+	const productNames = products
+		.map((p: { displayName: string }) => p.displayName)
+		.join(', ');
+	return `Campaign: "${query}". Location: ${location || 'N/A'}. Top products: ${productNames || 'N/A'}.`;
+}
+
+const EDITOR_PREVIEW_W = 405;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Component
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function PostStudio() {
 	const searchData = useBoundStore(s => s.searchData);
-	const acceptedTgIds = useBoundStore(s => s.acceptedTgIds);
+	const query = useBoundStore(s => s.query);
 
-	// The destinations template (index 1) gets seeded from campaign data;
-	// the guide template (index 0) uses its own defaults.
-	const destinationsInitialProps = useMemo(() => {
-		if (searchData)
-			return buildDestinationsProps(searchData, acceptedTgIds) as Record<
-				string,
-				unknown
-			>;
-		return (
-			POST_TEMPLATES.find(t => t.id === 'post-destinations')
-				?.defaultProps ?? POST_TEMPLATES[0].defaultProps
-		);
-	}, [searchData, acceptedTgIds]);
-
-	const getInitialProps = (id: string) => {
-		if (id === 'post-destinations') return destinationsInitialProps;
-		return (
-			POST_TEMPLATES.find(t => t.id === id)?.defaultProps ??
-			POST_TEMPLATES[0].defaultProps
-		);
-	};
-
-	const [templateId, setTemplateId] = useState(POST_TEMPLATES[0].id);
-	const [props, setProps] = useState<Record<string, unknown>>(
-		getInitialProps(POST_TEMPLATES[0].id),
+	const [view, setView] = useState<'grid' | 'editor'>('grid');
+	const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+	const [cardSlides, setCardSlides] = useState<
+		Record<string, Record<string, unknown>>
+	>(() =>
+		Object.fromEntries(
+			POST_SLIDE_CARDS.map(c => [c.id, { ...c.defaultSlide }]),
+		),
 	);
-	const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+	const [aiRecommended, setAiRecommended] = useState<string[]>([]);
+	const [aiReasons, setAiReasons] = useState<Record<string, string>>({});
+	const [aiLoading, setAiLoading] = useState(false);
 	const [downloading, setDownloading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -54,64 +184,106 @@ export function PostStudio() {
 		ensureFonts();
 	}, []);
 
-	const template = useMemo(
-		() => TEMPLATES.find(t => t.id === templateId)!,
-		[templateId],
-	);
+	// AI recommendation — runs once when campaign data is available
+	useEffect(() => {
+		if (!searchData || !query) return;
+		setAiLoading(true);
 
-	const handleTemplateChange = (id: string) => {
-		const tpl = TEMPLATES.find(t => t.id === id);
-		if (!tpl) return;
-		setTemplateId(id);
-		setProps(getInitialProps(id));
-		setActiveSlideIndex(0);
-	};
-
-	const slides = useMemo(
-		() => (props.slides ?? []) as Record<string, unknown>[],
+		fetch('/api/recommend-post-template', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				query,
+				campaignSummary: buildCampaignSummary(searchData, query),
+				cards: POST_SLIDE_CARDS.map(c => ({
+					id: c.id,
+					templateName: c.templateName,
+					slideTypeName: c.slideTypeName,
+					description: c.description,
+					defaultSlide: c.defaultSlide,
+					charLimits: c.charLimits,
+				})),
+			}),
+		})
+			.then(r =>
+				r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)),
+			)
+			.then((data: RecommendPostTemplateResponse) => {
+				const recs = data.recommendations ?? [];
+				setAiRecommended(recs.map(r => r.cardId));
+				setAiReasons(
+					Object.fromEntries(recs.map(r => [r.cardId, r.reason])),
+				);
+				const updates: Record<string, Record<string, unknown>> = {};
+				for (const rec of recs) {
+					if (
+						rec.generatedSlide &&
+						Object.keys(rec.generatedSlide).length > 0
+					) {
+						const card = POST_SLIDE_CARDS.find(
+							c => c.id === rec.cardId,
+						);
+						updates[rec.cardId] = {
+							...card?.defaultSlide,
+							...rec.generatedSlide,
+						};
+					}
+				}
+				if (Object.keys(updates).length > 0) {
+					setCardSlides(prev => ({ ...prev, ...updates }));
+				}
+			})
+			.catch(() => {})
+			.finally(() => setAiLoading(false));
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[props.slides],
+	}, []);
+
+	const selectedCard = useMemo(
+		() => POST_SLIDE_CARDS.find(c => c.id === selectedCardId),
+		[selectedCardId],
 	);
 
-	const currentSlide = slides[activeSlideIndex] ?? {};
-	const slideTypeConfig = template.slideTypes?.find(
-		st => st.type === (currentSlide.type as string),
-	);
-	const slideFields = slideTypeConfig?.fields ?? [];
-
-	const scale = PREVIEW_W / template.width;
-	const previewH = Math.round(template.height * scale);
-
-	const previewProps = useMemo(
-		() => ({ ...props, slideIndex: activeSlideIndex }),
-		[props, activeSlideIndex],
+	const selectedTemplate = useMemo(
+		() =>
+			selectedCard
+				? TEMPLATES.find(t => t.id === selectedCard.templateId)
+				: null,
+		[selectedCard],
 	);
 
-	const onSlideFieldChange = (key: string, value: unknown) => {
-		setProps(prev => {
-			const slidesCopy = [
-				...((prev.slides ?? []) as Record<string, unknown>[]),
-			];
-			slidesCopy[activeSlideIndex] = {
-				...slidesCopy[activeSlideIndex],
-				[key]: value,
-			};
-			return { ...prev, slides: slidesCopy };
-		});
+	const handleCardClick = (cardId: string) => {
+		setSelectedCardId(cardId);
+		setView('editor');
+		setError(null);
 	};
 
-	const handleSlidesChange = (newSlides: Record<string, unknown>[]) => {
-		setProps(prev => ({ ...prev, slides: newSlides }));
+	const handleBackToGrid = () => {
+		setView('grid');
+		setError(null);
 	};
 
-	const downloadZip = async () => {
+	const onFieldChange = (key: string, value: unknown) => {
+		if (!selectedCardId) return;
+		setCardSlides(prev => ({
+			...prev,
+			[selectedCardId]: { ...prev[selectedCardId], [key]: value },
+		}));
+	};
+
+	const downloadPng = async () => {
+		if (!selectedCard) return;
 		setError(null);
 		setDownloading(true);
 		try {
-			const res = await fetch('/api/render-carousel', {
+			const slideData =
+				cardSlides[selectedCard.id] ?? selectedCard.defaultSlide;
+			const res = await fetch('/api/render', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ templateId, props }),
+				body: JSON.stringify({
+					templateId: selectedCard.templateId,
+					props: { slides: [slideData], slideIndex: 0 },
+				}),
 			});
 			if (!res.ok) {
 				const detail = await res.json().catch(() => ({}));
@@ -124,7 +296,7 @@ export function PostStudio() {
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
 			a.href = url;
-			a.download = `${templateId}.zip`;
+			a.download = `${selectedCard.id}.png`;
 			document.body.appendChild(a);
 			a.click();
 			a.remove();
@@ -136,109 +308,211 @@ export function PostStudio() {
 		}
 	};
 
+	// ─── Grid view ─────────────────────────────────────────────────────────────
+
+	if (view === 'grid') {
+		return (
+			<div className='flex min-h-screen flex-col bg-[var(--background)]'>
+				<StudioHeader title='Campaign Posts' />
+
+				<div className='flex flex-1 flex-col px-8 py-6 gap-6'>
+					{/* Section header */}
+					<div className='flex items-center justify-between'>
+						<div>
+							<h2
+								className='text-[22px] font-semibold text-[var(--color-semantic-text-grey-1)]'
+								style={{ fontFamily: 'var(--font-hd)' }}
+							>
+								Choose a template
+							</h2>
+							<p className='mt-1 text-[13px] text-[var(--color-semantic-text-grey-3)]'>
+								Each template is a single-image Instagram post
+							</p>
+						</div>
+
+						{/* AI status pill */}
+						{aiLoading && (
+							<div className='flex items-center gap-2 rounded-full border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-light-grey-2)] px-4 py-2'>
+								<span className='text-[12px] text-[var(--color-semantic-text-grey-3)]'>
+									AI is choosing templates…
+								</span>
+								<span
+									className='inline-block h-3 w-3 rounded-full border-2 border-t-transparent border-[var(--color-semantic-text-grey-3)]'
+									style={{
+										animation: 'spin 0.8s linear infinite',
+									}}
+								/>
+							</div>
+						)}
+						{!aiLoading && aiRecommended.length > 0 && (
+							<div className='flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2'>
+								<span className='text-[13px]'>✨</span>
+								<span className='text-[12px] font-medium text-amber-700'>
+									AI picked {aiRecommended.length} template
+									{aiRecommended.length > 1 ? 's' : ''} for
+									your campaign
+								</span>
+							</div>
+						)}
+					</div>
+
+					{/* Template grid */}
+					<div className='grid grid-cols-2 gap-5 md:grid-cols-3 lg:grid-cols-4'>
+						{POST_SLIDE_CARDS.map(card => {
+							const template = TEMPLATES.find(
+								t => t.id === card.templateId,
+							);
+							if (!template) return null;
+
+							const isRecommended = aiRecommended.includes(
+								card.id,
+							);
+							const slideData =
+								cardSlides[card.id] ?? card.defaultSlide;
+							const previewProps = {
+								slides: [slideData],
+								slideIndex: 0,
+							};
+
+							return (
+								<button
+									key={card.id}
+									onClick={() => handleCardClick(card.id)}
+									className={`group relative flex flex-col rounded-2xl border-2 bg-[var(--color-semantic-surface-light-white)] text-left transition-all duration-200 hover:shadow-lg ${
+										isRecommended
+											? 'border-amber-400 shadow-md shadow-amber-100'
+											: 'border-[var(--color-semantic-dividers-dark)] hover:border-[var(--color-semantic-text-disabled)]'
+									}`}
+								>
+									{/* AI pick badge */}
+									{isRecommended && (
+										<div className='absolute -top-3 left-4 z-10 flex items-center gap-1 rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm'>
+											<span>✨</span>
+											<span>AI Pick</span>
+										</div>
+									)}
+
+									{/* Remotion preview */}
+									<div
+										className='w-full overflow-hidden rounded-t-[14px] bg-[var(--color-semantic-surface-light-grey-2)]'
+										style={{
+											aspectRatio: `${template.width}/${template.height}`,
+										}}
+									>
+										<Player
+											key={card.id}
+											component={
+												template.component as ComponentType
+											}
+											inputProps={previewProps}
+											durationInFrames={1}
+											fps={30}
+											compositionWidth={template.width}
+											compositionHeight={template.height}
+											style={{
+												width: '100%',
+												height: '100%',
+											}}
+											controls={false}
+											showVolumeControls={false}
+											clickToPlay={false}
+											doubleClickToFullscreen={false}
+										/>
+									</div>
+
+									{/* Card info */}
+									<div className='px-4 py-3'>
+										<p className='text-[11px] font-medium uppercase tracking-[0.6px] text-[var(--color-semantic-text-disabled)]'>
+											{card.templateName}
+										</p>
+										<p className='mt-0.5 text-[14px] font-semibold text-[var(--color-semantic-text-grey-1)]'>
+											{card.slideTypeName}
+										</p>
+										{isRecommended &&
+											aiReasons[card.id] && (
+												<p className='mt-1.5 text-[11px] leading-snug text-amber-600'>
+													{aiReasons[card.id]}
+												</p>
+											)}
+									</div>
+								</button>
+							);
+						})}
+					</div>
+				</div>
+
+				<style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+			</div>
+		);
+	}
+
+	// ─── Editor view ───────────────────────────────────────────────────────────
+
+	if (!selectedCard || !selectedTemplate) return null;
+
+	const slideData = cardSlides[selectedCard.id] ?? selectedCard.defaultSlide;
+	const previewProps = { slides: [slideData], slideIndex: 0 };
+	const scale = EDITOR_PREVIEW_W / selectedTemplate.width;
+	const previewH = Math.round(selectedTemplate.height * scale);
+
 	return (
 		<div className='flex min-h-screen flex-col bg-[var(--background)]'>
 			<StudioHeader
-				title='Campaign Posts — Asset Studio'
+				title={`${selectedCard.templateName} — ${selectedCard.slideTypeName}`}
+				onBack={handleBackToGrid}
+				backLabel='Templates'
 				action={
 					<button
-						onClick={downloadZip}
+						onClick={downloadPng}
 						disabled={downloading}
 						className='rounded-[var(--radius-full)] bg-[var(--color-semantic-surface-dark-black)] px-4 py-2 text-[15px] font-medium text-[var(--color-semantic-surface-light-white)] border border-[var(--color-semantic-dividers-dark)] transition-colors hover:bg-[var(--color-semantic-text-grey-1)] disabled:opacity-50 cursor-pointer'
 					>
-						{downloading
-							? 'Rendering…'
-							: `Download all (${slides.length} slides)`}
+						{downloading ? 'Rendering…' : 'Download PNG'}
 					</button>
 				}
 			/>
 
-			{/* Main layout */}
 			<div className='flex flex-1 flex-col gap-6 p-6 lg:flex-row'>
-				{/* ── Left sidebar ─────────────────────────────────────────────── */}
+				{/* ── Sidebar ──────────────────────────────────────────────── */}
 				<aside className='w-full shrink-0 lg:w-80'>
-					<div className='flex flex-col gap-4'>
-						{/* Template picker */}
-						<div className='rounded-xl border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-light-white)] p-4'>
-							<h2 className='mb-3 text-[11px] font-semibold uppercase tracking-[0.8px] text-[var(--color-semantic-text-disabled)]'>
-								Template
-							</h2>
-							<div className='flex flex-wrap gap-2'>
-								{POST_TEMPLATES.map(t => (
-									<button
-										key={t.id}
-										onClick={() =>
-											handleTemplateChange(t.id)
-										}
-										className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition-colors ${
-											t.id === templateId
-												? 'bg-[var(--color-semantic-surface-dark-black)] text-[var(--color-semantic-surface-light-white)] border-[var(--color-semantic-surface-dark-black)]'
-												: 'bg-[var(--color-semantic-surface-light-white)] text-[var(--color-semantic-text-grey-3)] border-[var(--color-semantic-dividers-dark)] hover:border-[var(--color-semantic-text-disabled)]'
-										}`}
-									>
-										{t.name}
-									</button>
-								))}
-							</div>
-						</div>
-
-						{/* Slide list */}
-						<div className='rounded-xl border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-light-white)] p-4'>
-							<h2 className='mb-3 text-[11px] font-semibold uppercase tracking-[0.8px] text-[var(--color-semantic-text-disabled)]'>
-								Slides
-							</h2>
-							<SlideListEditor
-								slides={slides}
-								activeIndex={activeSlideIndex}
-								slideTypes={template.slideTypes ?? []}
-								onSelect={setActiveSlideIndex}
-								onChange={handleSlidesChange}
-							/>
-						</div>
-
-						{/* Current slide fields */}
-						{slideFields.length > 0 ? (
-							<div className='rounded-xl border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-light-white)] p-4'>
-								<h2 className='mb-3 text-[11px] font-semibold uppercase tracking-[0.8px] text-[var(--color-semantic-text-disabled)]'>
-									Slide {activeSlideIndex + 1}
-									{slideTypeConfig ? (
-										<span className='ml-1.5 font-normal normal-case text-[var(--color-semantic-icon-grey-disabled-2)]'>
-											— {slideTypeConfig.name}
-										</span>
-									) : null}
-								</h2>
-								<ControlPanel
-									fields={slideFields}
-									values={currentSlide}
-									onChange={onSlideFieldChange}
-								/>
-							</div>
-						) : null}
+					<div className='rounded-xl border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-light-white)] p-4'>
+						<h2 className='mb-3 text-[11px] font-semibold uppercase tracking-[0.8px] text-[var(--color-semantic-text-disabled)]'>
+							Edit content
+						</h2>
+						<ControlPanel
+							fields={selectedCard.fields}
+							values={slideData}
+							onChange={onFieldChange}
+						/>
 					</div>
 				</aside>
 
-				{/* ── Preview ──────────────────────────────────────────────────── */}
+				{/* ── Preview ──────────────────────────────────────────────── */}
 				<main className='flex flex-1 flex-col items-center gap-5'>
-					{/* Canvas */}
 					<div
-						className='flex items-center justify-center bg-[var(--color-semantic-surface-light-grey-2)] rounded-[var(--radius-16)]'
+						className='flex items-center justify-center rounded-[var(--radius-16)] bg-[var(--color-semantic-surface-light-grey-2)]'
 						style={{
-							width: PREVIEW_W + 48,
+							width: EDITOR_PREVIEW_W + 48,
 							height: previewH + 48,
 						}}
 					>
 						<div
 							className='overflow-hidden rounded-lg shadow-lg'
-							style={{ width: PREVIEW_W, height: previewH }}
+							style={{
+								width: EDITOR_PREVIEW_W,
+								height: previewH,
+							}}
 						>
 							<Player
-								key={template.id}
-								component={template.component as ComponentType}
+								key={selectedCard.id}
+								component={
+									selectedTemplate.component as ComponentType
+								}
 								inputProps={previewProps}
 								durationInFrames={1}
 								fps={30}
-								compositionWidth={template.width}
-								compositionHeight={template.height}
+								compositionWidth={selectedTemplate.width}
+								compositionHeight={selectedTemplate.height}
 								style={{ width: '100%', height: '100%' }}
 								controls={false}
 								showVolumeControls={false}
@@ -248,36 +522,9 @@ export function PostStudio() {
 						</div>
 					</div>
 
-					{/* Slide navigation */}
-					<div className='flex items-center gap-4'>
-						<button
-							onClick={() =>
-								setActiveSlideIndex(i => Math.max(0, i - 1))
-							}
-							disabled={activeSlideIndex === 0}
-							className='rounded-lg border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-light-white)] px-3 py-1.5 text-xs font-medium text-[var(--color-semantic-text-grey-3)] hover:border-[var(--color-semantic-text-disabled)] disabled:opacity-40'
-						>
-							← Prev
-						</button>
-						<span className='text-xs text-[var(--color-semantic-text-disabled)]'>
-							{activeSlideIndex + 1} / {slides.length}
-						</span>
-						<button
-							onClick={() =>
-								setActiveSlideIndex(i =>
-									Math.min(slides.length - 1, i + 1),
-								)
-							}
-							disabled={activeSlideIndex === slides.length - 1}
-							className='rounded-lg border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-light-white)] px-3 py-1.5 text-xs font-medium text-[var(--color-semantic-text-grey-3)] hover:border-[var(--color-semantic-text-disabled)] disabled:opacity-40'
-						>
-							Next →
-						</button>
-					</div>
-
 					<span className='text-[12px] font-light text-[var(--color-semantic-text-disabled)]'>
 						Preview at {Math.round(scale * 100)}% · Exports at full{' '}
-						{template.width}×{template.height}
+						{selectedTemplate.width}×{selectedTemplate.height}
 					</span>
 
 					{error ? (
