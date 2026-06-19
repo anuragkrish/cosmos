@@ -15,8 +15,8 @@ importers:
         specifier: 7.0.4-etxt.1
         version: 7.0.4-etxt.1(@headout/pixie@2.3.0)(@types/react-dom@19.1.9(@types/react@19.1.12))(@types/react@19.1.12)(country-telephone-data@0.6.3)(libphonenumber-js@1.12.15)(react-dom@19.1.0(react@19.1.0))(react-hook-form@7.62.0(react@19.1.0))(react-native-svg@15.13.0(react-native@0.81.1(@babel/core@7.28.4)(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.1(@babel/core@7.28.4)(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
       '@headout/espeon':
-        specifier: 2.94.0-canary.5
-        version: 2.94.0-canary.5(dw6sqmcbxiydkp2lkakpntsosy)
+        specifier: 2.94.0-canary.6
+        version: 2.94.0-canary.6(dw6sqmcbxiydkp2lkakpntsosy)
       '@headout/onix':
         specifier: 4.3.1
         version: 4.3.1(react-native-svg@15.13.0(react-native@0.81.1(@babel/core@7.28.4)(@types/react@19.1.12)(react@19.1.0))(react@19.1.0))(react-native@0.81.1(@babel/core@7.28.4)(@types/react@19.1.12)(react@19.1.0))(react@19.1.0)
@@ -923,8 +923,8 @@ packages:
       react-pdf: 7.7.3
       swiper: ^11.1.12
 
-  '@headout/espeon@2.94.0-canary.5':
-    resolution: {integrity: sha512-srcTUPZ5a0mO/skWuXB8SgCrOgfRuE2wEaYBQ+OPKDSAhKd/QtWKr08yTvBNHxIEoaVKEoiDS71qGpsxFQZFyw==, tarball: https://npm.pkg.github.com/download/@headout/espeon/2.94.0-canary.5/ecef3ab07cca6036dee989ae721a04f233a6c0f7}
+  '@headout/espeon@2.94.0-canary.6':
+    resolution: {integrity: sha512-vPX4NuqAxDDPPRD6VK5kvQs3ZVZ1a4PoztrU9VVie5k5wZhgAtbkMIw674ZoOpvJfdFoM/4vPVh1lDfrfXZHkA==, tarball: https://npm.pkg.github.com/download/@headout/espeon/2.94.0-canary.6/ecbf003505a7f6f3ee6de69f03603571f99ef794}
     peerDependencies:
       '@headout/eevee': 7.0.4
       '@headout/onix': 4.3.1
@@ -6655,7 +6655,7 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
 
-  '@headout/espeon@2.94.0-canary.5(dw6sqmcbxiydkp2lkakpntsosy)':
+  '@headout/espeon@2.94.0-canary.6(dw6sqmcbxiydkp2lkakpntsosy)':
     dependencies:
       '@googlemaps/js-api-loader': 1.16.10
       '@googlemaps/polyline-codec': 1.0.28
