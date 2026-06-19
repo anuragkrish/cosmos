@@ -37,9 +37,11 @@ export function AppHeader({
 		>
 			{/* Left — wordmark + pill */}
 			<div className='flex items-center gap-3'>
-				<span className='text-[15px] font-semibold text-[var(--color-semantic-text-grey-1)]'>
-					Headout
-				</span>
+				<img
+					src='https://cdn-imgix-open.headout.com/logo/svg/Headout_purps.svg?w=229.5&h=36&fm=svg&crop=faces&auto=compress%2Cformat&fit=min'
+					alt='Headout'
+					style={{ height: '22px', width: 'auto' }}
+				/>
 				<span
 					className='
             text-[12px] font-medium text-[var(--color-semantic-text-grey-1)]

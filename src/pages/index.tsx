@@ -75,6 +75,16 @@ export default function Home() {
 	const [submitStep, setSubmitStep] = useState<'create' | 'fetch'>('create');
 	const [submitError, setSubmitError] = useState<string | null>(null);
 	const [assetsRevealed, setAssetsRevealed] = useState(hasStoredCampaign);
+	const [lastSubmittedIds, setLastSubmittedIds] =
+		useState<number[]>(storedAcceptedTgIds);
+	const [campaignUrls, setCampaignUrls] = useState<
+		{ label: string; url: string }[]
+	>([]);
+
+	const selectionChanged =
+		assetsRevealed &&
+		(acceptedIds.length !== lastSubmittedIds.length ||
+			acceptedIds.some(id => !lastSubmittedIds.includes(id)));
 
 	const assetsRef = useRef<HTMLDivElement>(null);
 
@@ -151,6 +161,35 @@ export default function Home() {
 				campaignData,
 			);
 
+			const BASE = 'https://poc-shv.deimos.dev-headout.com';
+			const urls: { label: string; url: string }[] = [
+				{
+					label: 'Collection page',
+					url: `${BASE}/${payload.urlSlug}-c-${collectionId}`,
+				},
+			];
+
+			const firstProductSlug = apiResponse.tourGroups.find(tg =>
+				acceptedIds.includes(tg.id),
+			)?.urlSlug;
+			if (firstProductSlug) {
+				urls.push({
+					label: 'Product page',
+					url: `${BASE}${firstProductSlug}`,
+				});
+			}
+
+			const rawCity = apiResponse.location?.cityCode;
+			if (rawCity) {
+				const citySlug = rawCity.toLowerCase().replace(/[_\s]+/g, '-');
+				urls.push({
+					label: 'City page',
+					url: `${BASE}/things-to-do-city-${citySlug}`,
+				});
+			}
+
+			setCampaignUrls(urls);
+			setLastSubmittedIds(acceptedIds);
 			setAssetsRevealed(true);
 			setTimeout(
 				() =>
@@ -212,26 +251,7 @@ export default function Home() {
 					}}
 				/>
 
-				<AppHeader
-					label='COSMOS'
-					action={
-						<button
-							className='
-                text-[15px] font-medium text-[var(--color-semantic-surface-light-white)]
-                bg-[var(--color-semantic-surface-dark-black)]
-                rounded-[var(--radius-full)]
-                px-4 py-2
-                border border-[var(--color-semantic-dividers-dark)]
-                cursor-pointer
-                hover:bg-[var(--color-semantic-text-grey-1)]
-                transition-colors
-              '
-							onClick={goChat}
-						>
-							New campaign
-						</button>
-					}
-				/>
+				<AppHeader label='COSMOS' />
 
 				<div className='relative z-[1] flex flex-1 flex-col items-center justify-center px-6 pb-30 pt-10'>
 					<div className='mb-[18px] text-[12px] font-medium uppercase tracking-[0.4px] text-[var(--color-semantic-text-grey-2)]'>
@@ -328,7 +348,7 @@ export default function Home() {
 						onClick={goChat}
 						className='text-[14px] font-light text-[var(--color-semantic-surface-dark-black)] cursor-pointer hover:opacity-70 transition-opacity'
 					>
-						＋ New brief
+						＋ New campaign
 					</button>
 				}
 			/>
@@ -431,8 +451,8 @@ export default function Home() {
 							onDecisionsChange={handleDecisions}
 						/>
 
-						{/* Confirm CTA — hidden once assets revealed */}
-						{!assetsRevealed && (
+						{/* Confirm / Update CTA */}
+						{(!assetsRevealed || selectionChanged) && (
 							<div
 								className='mt-[40px] rounded-[var(--radius-12)] border bg-[var(--color-semantic-surface-light-grey-1)]'
 								style={{
@@ -466,9 +486,9 @@ export default function Home() {
 												: 'No products selected yet'}
 										</p>
 										<p className='mt-0.5 text-[13px] font-light text-[var(--color-semantic-text-grey-3)]'>
-											Accept the products you want to
-											promote, then confirm to generate
-											campaign assets.
+											{selectionChanged
+												? 'Your selection changed — update the campaign to apply.'
+												: 'Accept the products you want to promote, then confirm to generate campaign assets.'}
 										</p>
 									</div>
 									<button
@@ -494,11 +514,13 @@ export default function Home() {
 													}}
 												/>
 												{submitStep === 'create'
-													? 'Creating campaign…'
+													? 'Updating campaign…'
 													: 'Loading collection…'}
 											</>
 										) : submitError ? (
 											'Try again →'
+										) : selectionChanged ? (
+											'Update campaign →'
 										) : (
 											'Confirm products →'
 										)}
@@ -529,11 +551,53 @@ export default function Home() {
 										included
 									</span>
 								</div>
-								<p className='mb-[28px] text-[14px] font-light text-[var(--color-semantic-text-grey-3)]'>
+								<p className='mb-[20px] text-[14px] font-light text-[var(--color-semantic-text-grey-3)]'>
 									Three creative sets generated from your
 									brief. Open any to edit, or preview the
 									campaign page.
 								</p>
+								{campaignUrls.length > 0 && (
+									<div className='mb-[28px] rounded-[var(--radius-8)] border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-light-grey-1)] overflow-hidden'>
+										{campaignUrls.map((item, i) => (
+											<div
+												key={item.label}
+												className={`flex items-center gap-3 px-4 py-3 ${i < campaignUrls.length - 1 ? 'border-b border-[var(--color-semantic-dividers-dark)]' : ''}`}
+											>
+												<span className='w-[110px] shrink-0 text-[12px] font-medium text-[var(--color-semantic-text-grey-3)]'>
+													{item.label}
+												</span>
+												<a
+													href={item.url}
+													target='_blank'
+													rel='noopener noreferrer'
+													className='flex-1 truncate text-[13px] font-medium text-[var(--color-semantic-text-grey-1)] hover:underline'
+												>
+													{item.url}
+												</a>
+												<a
+													href={item.url}
+													target='_blank'
+													rel='noopener noreferrer'
+													className='shrink-0 inline-flex items-center gap-1.5 rounded-[var(--radius-6)] border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-light-white)] px-3 py-1.5 text-[12px] font-medium text-[var(--color-semantic-text-grey-2)] cursor-pointer hover:bg-[var(--color-semantic-surface-light-grey-2)] transition-colors no-underline'
+												>
+													<svg
+														width='12'
+														height='12'
+														viewBox='0 0 12 12'
+														fill='none'
+														stroke='currentColor'
+														strokeWidth='1.5'
+														strokeLinecap='round'
+														strokeLinejoin='round'
+													>
+														<path d='M7 1h4v4M11 1L5.5 6.5M4.5 2H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V8.5' />
+													</svg>
+													View
+												</a>
+											</div>
+										))}
+									</div>
+								)}
 								<CampaignEntryCards prompt={query} />
 							</div>
 						)}

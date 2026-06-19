@@ -46,220 +46,213 @@ interface CampaignPagePreviewCardProps {
 }
 
 export function CampaignPagePreviewCard({
-	prompt,
+	prompt: _prompt,
 }: CampaignPagePreviewCardProps) {
 	const [open, setOpen] = useState(false);
 	const [hovered, setHovered] = useState(false);
 
 	return (
 		<>
-			<div
+			<button
+				onClick={() => setOpen(true)}
 				onMouseEnter={() => setHovered(true)}
 				onMouseLeave={() => setHovered(false)}
 				style={{
-					display: 'flex',
-					flexDirection: 'column',
-					gap: '16px',
-					borderRadius: 'var(--radius-16)',
-					border: `1px solid ${hovered ? 'var(--colors-core-grey-400)' : 'var(--color-semantic-dividers-dark)'}`,
-					background: 'var(--color-semantic-surface-light-white)',
-					padding: '20px',
-					boxShadow: hovered
-						? '0 4px 16px rgba(0,0,0,0.08)'
-						: '0 1px 4px rgba(0,0,0,0.04)',
-					transition:
-						'border-color 0.15s, box-shadow 0.15s, transform 0.15s',
+					position: 'relative',
+					borderRadius: '24px',
+					overflow: 'hidden',
+					cursor: 'pointer',
+					height: '430px',
+					display: 'block',
+					width: '100%',
+					border: 'none',
+					padding: 0,
+					background:
+						'linear-gradient(135deg, #0d1117 0%, #1a1f35 50%, #0f1923 100%)',
 					transform: hovered ? 'translateY(-2px)' : 'none',
+					transition: 'transform 0.15s',
 				}}
 			>
-				{/* Thumbnail */}
+				{/* Icon */}
 				<div
 					style={{
-						position: 'relative',
-						width: '100%',
-						borderRadius: 'var(--radius-12)',
-						overflow: 'hidden',
-						background:
-							'linear-gradient(135deg, var(--colors-core-grey-50) 0%, var(--colors-core-grey-100) 100%)',
-						border: '1px solid var(--color-semantic-dividers-dark)',
-						aspectRatio: '16 / 9',
+						position: 'absolute',
+						inset: 0,
 						display: 'flex',
 						alignItems: 'center',
 						justifyContent: 'center',
+						opacity: hovered ? 0.5 : 0.35,
+						transition: 'opacity 0.15s',
 					}}
 				>
-					<div
-						style={{
-							display: 'flex',
-							flexDirection: 'column',
-							alignItems: 'center',
-							gap: '6px',
-							padding: '0 16px',
-							textAlign: 'center',
-						}}
-					>
-						<div
-							style={{
-								width: '32px',
-								height: '32px',
-								borderRadius: 'var(--radius-full)',
-								background: 'var(--colors-core-grey-200)',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-							}}
-						>
-							<svg
-								width='16'
-								height='16'
-								viewBox='0 0 16 16'
-								fill='none'
-								style={{
-									color: 'var(--color-semantic-text-grey-3)',
-								}}
-							>
-								<rect
-									x='1'
-									y='3'
-									width='14'
-									height='10'
-									rx='1.5'
-									stroke='currentColor'
-									strokeWidth='1.3'
-								/>
-								<path
-									d='M1 6h14'
-									stroke='currentColor'
-									strokeWidth='1.3'
-								/>
-								<rect
-									x='3'
-									y='8.5'
-									width='4'
-									height='2.5'
-									rx='0.5'
-									fill='currentColor'
-									opacity='0.4'
-								/>
-								<rect
-									x='9'
-									y='8.5'
-									width='4'
-									height='1'
-									rx='0.5'
-									fill='currentColor'
-									opacity='0.3'
-								/>
-								<rect
-									x='9'
-									y='10'
-									width='2.5'
-									height='1'
-									rx='0.5'
-									fill='currentColor'
-									opacity='0.3'
-								/>
-							</svg>
-						</div>
-						<span
-							style={{
-								fontSize: '10px',
-								color: 'var(--color-semantic-text-disabled)',
-								fontWeight: 500,
-							}}
-						>
-							Campaign Page
-						</span>
-					</div>
-
-					<button
-						onClick={() => setOpen(true)}
-						style={{
-							position: 'absolute',
-							inset: 0,
-							display: 'flex',
-							alignItems: 'flex-end',
-							justifyContent: 'center',
-							paddingBottom: '12px',
-							opacity: hovered ? 1 : 0,
-							transition: 'opacity 0.15s',
-							cursor: 'pointer',
-							background: 'transparent',
-							border: 'none',
-						}}
-					>
-						<span
-							style={{
-								fontSize: '12px',
-								background: 'rgba(34,34,34,0.82)',
-								color: '#fff',
-								padding: '6px 12px',
-								borderRadius: 'var(--radius-8)',
-								fontWeight: 500,
-								backdropFilter: 'blur(6px)',
-							}}
-						>
-							Preview
-						</span>
-					</button>
+					<svg width='64' height='50' viewBox='0 0 64 50' fill='none'>
+						<rect
+							x='1'
+							y='1'
+							width='62'
+							height='48'
+							rx='5'
+							stroke='white'
+							strokeWidth='2'
+							opacity='0.6'
+						/>
+						<path
+							d='M1 10h62'
+							stroke='white'
+							strokeWidth='2'
+							opacity='0.4'
+						/>
+						<circle
+							cx='8'
+							cy='5.5'
+							r='2'
+							fill='white'
+							opacity='0.5'
+						/>
+						<circle
+							cx='15'
+							cy='5.5'
+							r='2'
+							fill='white'
+							opacity='0.5'
+						/>
+						<circle
+							cx='22'
+							cy='5.5'
+							r='2'
+							fill='white'
+							opacity='0.5'
+						/>
+						<rect
+							x='6'
+							y='16'
+							width='52'
+							height='8'
+							rx='2'
+							fill='white'
+							opacity='0.2'
+						/>
+						<rect
+							x='6'
+							y='28'
+							width='24'
+							height='14'
+							rx='2'
+							fill='white'
+							opacity='0.15'
+						/>
+						<rect
+							x='34'
+							y='28'
+							width='24'
+							height='6'
+							rx='2'
+							fill='white'
+							opacity='0.1'
+						/>
+						<rect
+							x='34'
+							y='36'
+							width='15'
+							height='6'
+							rx='2'
+							fill='white'
+							opacity='0.1'
+						/>
+					</svg>
 				</div>
 
-				{/* Card footer */}
+				{/* Gradient overlay */}
 				<div
 					style={{
-						display: 'flex',
-						alignItems: 'flex-start',
-						justifyContent: 'space-between',
+						position: 'absolute',
+						inset: 0,
+						background:
+							'linear-gradient(to top, rgba(12,8,5,0.92) 0%, rgba(12,8,5,0.55) 34%, rgba(12,8,5,0.05) 60%, rgba(12,8,5,0) 100%)',
+					}}
+				/>
+
+				{/* Badge */}
+				<span
+					style={{
+						position: 'absolute',
+						top: '18px',
+						left: '18px',
+						zIndex: 2,
+						fontSize: '11px',
+						fontWeight: 600,
+						letterSpacing: '0.6px',
+						textTransform: 'uppercase',
+						color: '#fff',
+						background: 'rgba(255,255,255,0.12)',
+						backdropFilter: 'blur(6px)',
+						border: '1px solid rgba(255,255,255,0.2)',
+						borderRadius: '9999px',
+						padding: '5px 12px',
 					}}
 				>
-					<div
-						style={{
-							display: 'flex',
-							flexDirection: 'column',
-							gap: '4px',
-						}}
-					>
-						<span
-							style={{
-								fontSize: '14px',
-								fontWeight: 600,
-								color: 'var(--color-semantic-text-grey-1)',
-							}}
-						>
-							Campaign Page
-						</span>
-						<span
-							style={{
-								fontSize: '12px',
-								color: 'var(--color-semantic-text-disabled)',
-								lineHeight: 1.5,
-							}}
-						>
-							See how your products look on the collection page
-							template
-						</span>
-					</div>
-					<button
-						onClick={() => setOpen(true)}
-						style={{
-							flexShrink: 0,
-							marginTop: '2px',
-							fontSize: '12px',
-							color: 'var(--color-semantic-text-grey-3)',
-							background:
-								'var(--color-semantic-surface-light-white)',
-							border: '1px solid var(--color-semantic-dividers-dark)',
-							padding: '4px 10px',
-							borderRadius: 'var(--radius-8)',
-							cursor: 'pointer',
-							fontWeight: 500,
-							transition: 'border-color 0.12s, color 0.12s',
-						}}
-					>
-						Preview
-					</button>
+					04
+				</span>
+
+				{/* Hover CTA */}
+				<div
+					style={{
+						position: 'absolute',
+						top: '18px',
+						right: '18px',
+						zIndex: 2,
+						opacity: hovered ? 1 : 0,
+						transition: 'opacity 0.15s',
+						fontSize: '12px',
+						background: 'rgba(255,255,255,0.15)',
+						color: '#fff',
+						padding: '5px 12px',
+						borderRadius: '9999px',
+						fontWeight: 500,
+						backdropFilter: 'blur(6px)',
+						border: '1px solid rgba(255,255,255,0.2)',
+					}}
+				>
+					Preview →
 				</div>
-			</div>
+
+				{/* Title + description */}
+				<div
+					style={{
+						position: 'absolute',
+						left: '24px',
+						right: '24px',
+						bottom: '24px',
+						zIndex: 2,
+						textAlign: 'left',
+					}}
+				>
+					<p
+						style={{
+							fontFamily: 'var(--font-hd)',
+							fontWeight: 600,
+							fontSize: '25px',
+							color: '#fff',
+							margin: 0,
+						}}
+					>
+						Campaign Page
+					</p>
+					<p
+						style={{
+							fontSize: '14px',
+							fontWeight: 300,
+							lineHeight: 1.5,
+							color: 'rgba(255,255,255,0.75)',
+							marginTop: '6px',
+							marginBottom: 0,
+						}}
+					>
+						Live preview of the collection page your audience will
+						see.
+					</p>
+				</div>
+			</button>
 
 			{open && (
 				<CampaignPagePreviewModal onClose={() => setOpen(false)} />
@@ -291,7 +284,8 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 
 	const bannerImages: string[] = useMemo(() => {
 		const raw = searchData?.banner?.images;
-		return Array.isArray(raw) ? raw.filter(Boolean) : [];
+		if (!Array.isArray(raw)) return [];
+		return [...new Set(raw.filter(Boolean))];
 	}, [searchData]);
 
 	const [lang, setLang] = useState<SupportedLang>('en');
@@ -928,7 +922,7 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 								}) => {
 									if (product?.urlSlug) {
 										window.open(
-											`https://www.headout.com${product.urlSlug}`,
+											`https://poc-shv.deimos.dev-headout.com${product.urlSlug}`,
 											'_blank',
 										);
 									}
