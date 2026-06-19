@@ -667,6 +667,16 @@ function CampaignPagePreviewModal({
 								currencyList={[]}
 								productCardLabels={PRODUCT_CARD_LABELS}
 								editConfig={editConfig}
+								onProductCardClick={(product: {
+									urlSlug?: string;
+								}) => {
+									if (product?.urlSlug) {
+										window.open(
+											`https://www.headout.com${product.urlSlug}`,
+											'_blank',
+										);
+									}
+								}}
 							/>
 						</div>
 					)}
