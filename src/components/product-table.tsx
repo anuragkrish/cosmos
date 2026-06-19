@@ -22,7 +22,6 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import {
 	CheckIcon,
-	XIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	ChevronsUpDownIcon,
@@ -421,33 +420,21 @@ const columns: ColumnDef<SearchContentTourGroup>[] = [
 		cell: ({ row, table }) => {
 			const { decisions, decide } = table.options.meta!;
 			const decision = decisions.get(row.original.id);
-			const isAccepted = decision === 'accepted';
-			const isDeclined = decision === 'declined';
+			const isTagged = decision === 'accepted';
 			return (
-				<div className='flex items-center gap-1 justify-end pr-1'>
+				<div className='flex items-center justify-end pr-2'>
 					<button
-						aria-label={`accept-${row.original.id}`}
+						aria-label={`tag-${row.original.id}`}
 						onClick={() => decide(row.original.id, 'accepted')}
 						className={cn(
-							'inline-flex items-center justify-center rounded-full h-7 w-7 transition-colors cursor-pointer',
-							isAccepted
+							'inline-flex items-center gap-1.5 rounded-full px-3 h-7 text-[11px] font-medium transition-colors cursor-pointer whitespace-nowrap',
+							isTagged
 								? 'bg-[var(--color-semantic-surface-dark-success-1)] text-white'
-								: 'text-[var(--color-semantic-icon-grey-disabled-2)] hover:bg-[var(--color-semantic-surface-light-grey-3)] hover:text-[var(--color-semantic-text-grey-2)]',
+								: 'border border-[var(--color-semantic-dividers-dark)] text-[var(--color-semantic-text-grey-3)] hover:bg-[var(--color-semantic-surface-light-grey-3)] hover:text-[var(--color-semantic-text-grey-2)]',
 						)}
 					>
-						<CheckIcon className='h-3.5 w-3.5' />
-					</button>
-					<button
-						aria-label={`decline-${row.original.id}`}
-						onClick={() => decide(row.original.id, 'declined')}
-						className={cn(
-							'inline-flex items-center justify-center rounded-full h-7 w-7 transition-colors cursor-pointer',
-							isDeclined
-								? 'bg-[#DC2626] text-white'
-								: 'text-[var(--color-semantic-icon-grey-disabled-2)] hover:bg-[var(--color-semantic-surface-light-grey-3)] hover:text-[var(--color-semantic-text-grey-2)]',
-						)}
-					>
-						<XIcon className='h-3.5 w-3.5' />
+						<CheckIcon className='h-3 w-3' />
+						{isTagged ? 'Tagged' : 'Tag'}
 					</button>
 				</div>
 			);
@@ -459,7 +446,7 @@ const columns: ColumnDef<SearchContentTourGroup>[] = [
 
 interface ProductTableProps {
 	products: SearchContentTourGroup[];
-	onDecisionsChange?: (acceptedIds: number[], declinedIds: number[]) => void;
+	onDecisionsChange?: (acceptedIds: number[]) => void;
 }
 
 export function ProductTable({
@@ -507,23 +494,10 @@ export function ProductTable({
 		const accepted = [...decisions.entries()]
 			.filter(([, d]) => d === 'accepted')
 			.map(([id]) => id);
-		const declined = [...decisions.entries()]
-			.filter(([, d]) => d === 'declined')
-			.map(([id]) => id);
-		onDecisionsChange(accepted, declined);
+		onDecisionsChange(accepted);
 	}, [decisions, onDecisionsChange]);
 
 	const scrollRef = useRef<HTMLDivElement>(null);
-	const [overflowing, setOverflowing] = useState(false);
-	useEffect(() => {
-		const el = scrollRef.current;
-		if (!el) return;
-		const update = () => setOverflowing(el.scrollWidth > el.clientWidth);
-		update();
-		const ro = new ResizeObserver(update);
-		ro.observe(el);
-		return () => ro.disconnect();
-	}, []);
 
 	const table = useReactTable({
 		data: products,
@@ -539,11 +513,8 @@ export function ProductTable({
 
 	const { pageIndex } = table.getState().pagination;
 	const totalPages = table.getPageCount();
-	const acceptedCount = [...decisions.values()].filter(
+	const taggedCount = [...decisions.values()].filter(
 		d => d === 'accepted',
-	).length;
-	const declinedCount = [...decisions.values()].filter(
-		d => d === 'declined',
 	).length;
 	const selectionCount = selected.size;
 
@@ -570,7 +541,7 @@ export function ProductTable({
 					) : (
 						<span>{products.length} products</span>
 					)}
-					{acceptedCount > 0 && selectionCount === 0 && (
+					{taggedCount > 0 && selectionCount === 0 && (
 						<>
 							<div
 								className='h-3.5 w-px'
@@ -588,29 +559,7 @@ export function ProductTable({
 								}}
 							>
 								<CheckIcon className='h-3 w-3' />
-								{acceptedCount} accepted
-							</span>
-						</>
-					)}
-					{declinedCount > 0 && selectionCount === 0 && (
-						<>
-							<div
-								className='h-3.5 w-px'
-								style={{
-									background:
-										'var(--color-semantic-dividers-dark)',
-								}}
-							/>
-							<span
-								className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium'
-								style={{
-									fontSize: '12px',
-									background: 'rgba(220,38,38,0.07)',
-									color: '#DC2626',
-								}}
-							>
-								<XIcon className='h-3 w-3' />
-								{declinedCount} declined
+								{taggedCount} tagged
 							</span>
 						</>
 					)}
@@ -629,18 +578,7 @@ export function ProductTable({
 							}}
 						>
 							<CheckIcon className='h-3.5 w-3.5' />
-							Accept {selectionCount}
-						</button>
-						<button
-							onClick={() => bulkDecide('declined')}
-							className='inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors cursor-pointer'
-							style={{
-								background: 'rgba(220,38,38,0.09)',
-								color: '#DC2626',
-							}}
-						>
-							<XIcon className='h-3.5 w-3.5' />
-							Decline {selectionCount}
+							Tag {selectionCount}
 						</button>
 					</div>
 				)}
@@ -670,18 +608,14 @@ export function ProductTable({
 										key={header.id}
 										className={cn(
 											'font-medium text-[12px] whitespace-nowrap',
-											header.column.id === 'actions' &&
-												overflowing
-												? 'sticky right-0 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.08)] w-0 pr-4 text-end'
-												: header.column.id === 'actions'
-													? 'w-0 pr-4 text-end'
-													: '',
+											header.column.id === 'actions'
+												? 'sticky right-0 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.08)] w-0 pr-2 text-end'
+												: '',
 										)}
 										style={{
 											color: 'var(--color-semantic-text-grey-3)',
 											background:
-												header.column.id ===
-													'actions' && overflowing
+												header.column.id === 'actions'
 													? 'var(--color-semantic-surface-light-grey-1)'
 													: undefined,
 										}}
@@ -703,14 +637,12 @@ export function ProductTable({
 						{table.getRowModel().rows.map(row => {
 							const decision = decisions.get(row.original.id);
 							const isAccepted = decision === 'accepted';
-							const isDeclined = decision === 'declined';
 							const isSelected = selected.has(row.original.id);
 							return (
 								<TableRow
 									key={row.id}
 									className='transition-colors'
 									style={{
-										opacity: isDeclined ? 0.4 : 1,
 										boxShadow: isAccepted
 											? 'inset 3px 0 0 var(--color-semantic-surface-dark-success-1)'
 											: undefined,
@@ -725,14 +657,12 @@ export function ProductTable({
 										<TableCell
 											key={cell.id}
 											className={
-												cell.column.id === 'actions' &&
-												overflowing
-													? 'sticky right-0 bg-background shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.08)]'
+												cell.column.id === 'actions'
+													? 'sticky right-0 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.08)]'
 													: ''
 											}
 											style={
-												cell.column.id === 'actions' &&
-												overflowing
+												cell.column.id === 'actions'
 													? {
 															background:
 																isAccepted
