@@ -16,9 +16,15 @@ interface RecommendRequest {
 	>[];
 }
 
+export interface CompetitorSource {
+	url: string;
+	title: string;
+}
+
 export interface RecommendResponse {
 	recommendedIds: number[];
 	reasons: Record<number, string>;
+	sources: Record<number, CompetitorSource>;
 	searchContext: string;
 }
 
@@ -37,6 +43,38 @@ function extractText(response: any): string {
 		.trim();
 }
 
+// Pulls url_citation annotations from the competitor response.
+// These are the actual pages the model read, grounded in real search results.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractSources(response: any): CompetitorSource[] {
+	const seen = new Set<string>();
+	const sources: CompetitorSource[] = [];
+
+	for (const block of response.output ?? []) {
+		if (block.type !== 'message') continue;
+		for (const content of block.content ?? []) {
+			if (content.type !== 'output_text') continue;
+			for (const annotation of content.annotations ?? []) {
+				if (annotation.type !== 'url_citation') continue;
+				const { url, title } = annotation as {
+					url: string;
+					title: string;
+				};
+				if (!url || seen.has(url)) continue;
+				// Only keep URLs from the three competitor domains
+				const isCompetitor = COMPETITORS.some(domain =>
+					url.includes(domain),
+				);
+				if (!isCompetitor) continue;
+				seen.add(url);
+				sources.push({ url, title: title ?? url });
+			}
+		}
+	}
+
+	return sources;
+}
+
 export default async function handler(
 	req: NextApiRequest,
 	res: NextApiResponse<RecommendResponse | { error: string }>,
@@ -53,9 +91,8 @@ export default async function handler(
 			.json({ error: 'query and products are required' });
 	}
 
-	// Step 1: run traveller intent search + competitor research in parallel
+	// Step 1: traveller intent + competitor research in parallel
 	const [travellersResponse, competitorResponse] = await Promise.all([
-		// What do travellers love for this event/destination?
 		openai.responses.create({
 			model: 'gpt-4o',
 			tools: [{ type: 'web_search_preview' }],
@@ -65,7 +102,6 @@ Return a concise summary (150-200 words) of the top keywords, themes, and specif
 Focus on things like event names, landmark activities, popular categories, and seasonal highlights.`,
 		}),
 
-		// What are the top competitor OTAs featuring for this query?
 		openai.responses.create({
 			model: 'gpt-4o',
 			tools: [{ type: 'web_search_preview' }],
@@ -83,6 +119,16 @@ This reveals what the market considers the most commercially viable products for
 		extractText(travellersResponse) || 'No traveller context found.';
 	const competitorContext =
 		extractText(competitorResponse) || 'No competitor context found.';
+
+	// Extract grounded competitor URLs from the web search annotations
+	const competitorSources = extractSources(competitorResponse);
+	const sourcesBlock =
+		competitorSources.length > 0
+			? `\nCOMPETITOR SOURCE URLS (use these exact URLs only — do not invent any):\n${competitorSources
+					.map((s, i) => `[${i + 1}] ${s.title} — ${s.url}`)
+					.join('\n')}`
+			: '';
+
 	const searchContext = `TRAVELLER INTENT:\n${travellersContext}\n\nCOMPETITOR MARKET SIGNALS:\n${competitorContext}`;
 
 	// Step 2: rank products using both signals
@@ -107,24 +153,27 @@ This reveals what the market considers the most commercially viable products for
 				content: `You are a travel marketing expert helping curate the best products for a campaign.
 Campaign prompt: "${query}"
 
-You have two research signals to guide your selection:
+You have two research signals:
 
 1. TRAVELLER INTENT — what travellers are searching for and want to experience:
 ${travellersContext}
 
-2. COMPETITOR MARKET SIGNALS — what GetYourGuide, Klook, and Viator are featuring for this query:
+2. COMPETITOR MARKET SIGNALS — what GetYourGuide, Klook, and Viator are featuring:
 ${competitorContext}
+${sourcesBlock}
 
-Use both signals together. Competitor data tells you which experience types have proven commercial demand.
-Traveller intent tells you what emotional and practical needs to address.
+Use both signals together. Competitor data shows proven commercial demand; traveller intent shows emotional fit.
 
-Your job: from the product list below, pick the top 15 products that best match the campaign.
-Consider: category alignment with competitor bestsellers, relevance to traveller intent, rating quality.
+Your job: pick the top 15 products from the list below that best match the campaign.
 
 Return a JSON object with this exact shape:
 {
   "recommendations": [
-    { "id": <product id>, "reason": "<one concise sentence explaining why this product fits — reference a specific signal>" },
+    {
+      "id": <product id>,
+      "reason": "<one concise sentence — if competitor-inspired, say so explicitly>",
+      "sourceIndex": <number from the source list above, or null if not competitor-inspired>
+    },
     ...
   ]
 }
@@ -132,8 +181,9 @@ Return a JSON object with this exact shape:
 Rules:
 - Only include IDs that exist in the product list
 - Return at most 15 items, ranked best first
-- Each reason must be specific — mention the event/vibe/competitor category it aligns with
-- Keep each reason under 20 words`,
+- reason must be ≤20 words and specific — name the event/vibe/category it aligns with
+- sourceIndex must be a number from the COMPETITOR SOURCE URLS list, or null
+- Never invent URLs or sourceIndex values outside the provided list`,
 			},
 			{
 				role: 'user',
@@ -145,9 +195,14 @@ Rules:
 	const raw = rankResponse.choices[0]?.message?.content ?? '{}';
 	let recommendedIds: number[] = [];
 	let reasons: Record<number, string> = {};
+	let sources: Record<number, CompetitorSource> = {};
 	try {
 		const parsed = JSON.parse(raw) as {
-			recommendations?: { id: number; reason: string }[];
+			recommendations?: {
+				id: number;
+				reason: string;
+				sourceIndex?: number | null;
+			}[];
 		};
 		const recs = Array.isArray(parsed.recommendations)
 			? parsed.recommendations.filter(r =>
@@ -156,9 +211,20 @@ Rules:
 			: [];
 		recommendedIds = recs.map(r => r.id);
 		reasons = Object.fromEntries(recs.map(r => [r.id, r.reason]));
+		sources = Object.fromEntries(
+			recs
+				.filter(
+					r =>
+						r.sourceIndex != null &&
+						competitorSources[r.sourceIndex - 1] != null,
+				)
+				.map(r => [r.id, competitorSources[r.sourceIndex! - 1]]),
+		);
 	} catch {
 		// return empty list — UI handles gracefully
 	}
 
-	return res.status(200).json({ recommendedIds, reasons, searchContext });
+	return res
+		.status(200)
+		.json({ recommendedIds, reasons, sources, searchContext });
 }

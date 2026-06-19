@@ -28,12 +28,17 @@ import {
 	ChevronUpIcon,
 	ChevronDownIcon,
 	SparklesIcon,
-	MessageCircleIcon,
+	InfoIcon,
+	ExternalLinkIcon,
+	XIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ProductDecision } from '@/lib/types';
 import type { SearchContentTourGroup } from '@/lib/campaign-api';
-import type { RecommendResponse } from '@/pages/api/recommend';
+import type {
+	RecommendResponse,
+	CompetitorSource,
+} from '@/pages/api/recommend';
 
 // ─── TanStack Table meta ─────────────────────────────────────────────────────
 declare module '@tanstack/react-table' {
@@ -44,7 +49,7 @@ declare module '@tanstack/react-table' {
 		selected: Set<number>;
 		toggleSelect: (id: number) => void;
 		aiPicks: number[];
-		aiReasons: Record<number, string>;
+		openInfo: (id: number) => void;
 	}
 }
 
@@ -167,7 +172,8 @@ const columns: ColumnDef<SearchContentTourGroup>[] = [
 		header: '',
 		cell: ({ row, table }) => {
 			const imageUrl = row.original.medias?.[0]?.url;
-			const rank = table.options.meta!.aiPicks.indexOf(row.original.id);
+			const { aiPicks, openInfo } = table.options.meta!;
+			const rank = aiPicks.indexOf(row.original.id);
 			const isAiPick = rank !== -1;
 			return (
 				<div style={{ position: 'relative', display: 'inline-flex' }}>
@@ -196,25 +202,59 @@ const columns: ColumnDef<SearchContentTourGroup>[] = [
 						)}
 					</div>
 					{isAiPick && (
-						<span
-							style={{
-								position: 'absolute',
-								top: -5,
-								right: -5,
-								fontSize: '9px',
-								fontWeight: 700,
-								lineHeight: 1,
-								padding: '2px 4px',
-								borderRadius: 4,
-								background:
-									'linear-gradient(135deg, #7c3aed, #4f46e5)',
-								color: '#fff',
-								whiteSpace: 'nowrap',
-								boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
-							}}
-						>
-							#{rank + 1}
-						</span>
+						<>
+							{/* rank badge */}
+							<span
+								style={{
+									position: 'absolute',
+									top: -5,
+									right: -5,
+									fontSize: '9px',
+									fontWeight: 700,
+									lineHeight: 1,
+									padding: '2px 4px',
+									borderRadius: 4,
+									background:
+										'linear-gradient(135deg, #7c3aed, #4f46e5)',
+									color: '#fff',
+									whiteSpace: 'nowrap',
+									boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+								}}
+							>
+								#{rank + 1}
+							</span>
+							{/* info icon */}
+							<button
+								onClick={() => openInfo(row.original.id)}
+								aria-label='Why recommended'
+								style={{
+									position: 'absolute',
+									bottom: -5,
+									right: -5,
+									width: 16,
+									height: 16,
+									borderRadius: '50%',
+									background:
+										'linear-gradient(135deg, #7c3aed, #4f46e5)',
+									border: 'none',
+									cursor: 'pointer',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									boxShadow: '0 1px 4px rgba(0,0,0,0.18)',
+									padding: 0,
+								}}
+							>
+								<InfoIcon
+									style={{
+										width: 9,
+										height: 9,
+										color: '#fff',
+										strokeWidth: 2.5,
+									}}
+								/>
+							</button>
+						</>
 					)}
 				</div>
 			);
@@ -227,47 +267,20 @@ const columns: ColumnDef<SearchContentTourGroup>[] = [
 		size: 300,
 		minSize: 200,
 		maxSize: 320,
-		cell: ({ row, table }) => {
-			const reason = table.options.meta!.aiReasons[row.original.id];
-			return (
-				<div style={{ width: 280, minWidth: 0 }}>
-					<div
-						className='font-medium line-clamp-2'
-						style={{
-							fontSize: '14px',
-							color: 'var(--color-semantic-surface-dark-black)',
-							lineHeight: 1.35,
-						}}
-					>
-						{row.original.displayName}
-					</div>
-					{reason && (
-						<div
-							className='flex items-start gap-1 mt-1'
-							style={{
-								fontSize: '11px',
-								color: '#6d28d9',
-								lineHeight: 1.4,
-								whiteSpace: 'normal',
-								wordBreak: 'break-word',
-							}}
-						>
-							<MessageCircleIcon
-								style={{
-									width: 11,
-									height: 11,
-									flexShrink: 0,
-									marginTop: 1,
-									fill: '#ede9fe',
-									strokeWidth: 1.75,
-								}}
-							/>
-							<span style={{ minWidth: 0 }}>{reason}</span>
-						</div>
-					)}
+		cell: ({ row }) => (
+			<div style={{ width: 280, minWidth: 0 }}>
+				<div
+					className='font-medium line-clamp-2'
+					style={{
+						fontSize: '14px',
+						color: 'var(--color-semantic-surface-dark-black)',
+						lineHeight: 1.35,
+					}}
+				>
+					{row.original.displayName}
 				</div>
-			);
-		},
+			</div>
+		),
 	},
 	{
 		id: 'city',
@@ -505,9 +518,13 @@ export function ProductTable({
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [aiPicks, setAiPicks] = useState<number[]>([]);
 	const [aiReasons, setAiReasons] = useState<Record<number, string>>({});
+	const [aiSources, setAiSources] = useState<
+		Record<number, CompetitorSource>
+	>({});
 	const [aiContext, setAiContext] = useState<string>('');
 	const [aiLoading, setAiLoading] = useState(false);
 	const [aiError, setAiError] = useState<string | null>(null);
+	const [openInfoId, setOpenInfoId] = useState<number | null>(null);
 
 	const decide = useCallback((id: number, decision: ProductDecision) => {
 		setDecisions(prev => {
@@ -564,6 +581,7 @@ export function ProductTable({
 			const data = (await res.json()) as RecommendResponse;
 			setAiPicks(data.recommendedIds);
 			setAiReasons(data.reasons ?? {});
+			setAiSources(data.sources ?? {});
 			setAiContext(data.searchContext);
 		} catch (e) {
 			setAiError(
@@ -612,7 +630,14 @@ export function ProductTable({
 		getPaginationRowModel: getPaginationRowModel(),
 		autoResetPageIndex: false,
 		initialState: { pagination: { pageSize: PAGE_SIZE, pageIndex: 0 } },
-		meta: { decisions, decide, selected, toggleSelect, aiPicks, aiReasons },
+		meta: {
+			decisions,
+			decide,
+			selected,
+			toggleSelect,
+			aiPicks,
+			openInfo: setOpenInfoId,
+		},
 	});
 
 	// Jump to page 1 when AI picks arrive so recommended rows are visible
@@ -917,6 +942,159 @@ export function ProductTable({
 					{products.length} results
 				</span>
 			</div>
+
+			{/* AI insight popup — fixed so it escapes the overflow container */}
+			{openInfoId !== null &&
+				(() => {
+					const reason = aiReasons[openInfoId];
+					const source = aiSources[openInfoId];
+					const rank = aiPicks.indexOf(openInfoId) + 1;
+					const sourceDomain = source
+						? new URL(source.url).hostname.replace('www.', '')
+						: null;
+					return (
+						<div
+							style={{
+								position: 'fixed',
+								inset: 0,
+								zIndex: 100,
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+								background: 'rgba(0,0,0,0.25)',
+								backdropFilter: 'blur(2px)',
+							}}
+							onClick={() => setOpenInfoId(null)}
+						>
+							<div
+								onClick={e => e.stopPropagation()}
+								style={{
+									background: '#fff',
+									borderRadius: 14,
+									padding: '20px 22px',
+									width: 340,
+									boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+									border: '1px solid rgba(124,58,237,0.12)',
+								}}
+							>
+								{/* header */}
+								<div className='flex items-center justify-between mb-3'>
+									<div className='flex items-center gap-2'>
+										<span
+											style={{
+												fontSize: '10px',
+												fontWeight: 700,
+												padding: '2px 7px',
+												borderRadius: 99,
+												background:
+													'linear-gradient(135deg, #7c3aed, #4f46e5)',
+												color: '#fff',
+												letterSpacing: '0.02em',
+											}}
+										>
+											#{rank} AI Pick
+										</span>
+										{source && (
+											<span
+												style={{
+													fontSize: '10px',
+													fontWeight: 600,
+													padding: '2px 7px',
+													borderRadius: 99,
+													background: '#f3f0ff',
+													color: '#5b21b6',
+													textTransform: 'capitalize',
+												}}
+											>
+												{sourceDomain}
+											</span>
+										)}
+									</div>
+									<button
+										onClick={() => setOpenInfoId(null)}
+										style={{
+											background: 'none',
+											border: 'none',
+											cursor: 'pointer',
+											color: 'var(--color-semantic-text-grey-3)',
+											padding: 2,
+											display: 'flex',
+										}}
+									>
+										<XIcon
+											style={{ width: 15, height: 15 }}
+										/>
+									</button>
+								</div>
+
+								{/* reason */}
+								{reason && (
+									<p
+										style={{
+											fontSize: '13px',
+											lineHeight: 1.55,
+											color: 'var(--color-semantic-surface-dark-black)',
+											marginBottom: source ? 14 : 0,
+										}}
+									>
+										{reason}
+									</p>
+								)}
+
+								{/* competitor source link */}
+								{source && (
+									<a
+										href={source.url}
+										target='_blank'
+										rel='noopener noreferrer'
+										style={{
+											display: 'flex',
+											alignItems: 'flex-start',
+											gap: 8,
+											padding: '10px 12px',
+											borderRadius: 9,
+											background: '#f8f5ff',
+											border: '1px solid rgba(124,58,237,0.15)',
+											textDecoration: 'none',
+										}}
+									>
+										<ExternalLinkIcon
+											style={{
+												width: 13,
+												height: 13,
+												color: '#7c3aed',
+												flexShrink: 0,
+												marginTop: 2,
+											}}
+										/>
+										<div>
+											<div
+												style={{
+													fontSize: '11px',
+													fontWeight: 600,
+													color: '#5b21b6',
+													marginBottom: 2,
+												}}
+											>
+												{sourceDomain}
+											</div>
+											<div
+												style={{
+													fontSize: '11px',
+													color: '#6d28d9',
+													lineHeight: 1.4,
+													wordBreak: 'break-all',
+												}}
+											>
+												{source.title}
+											</div>
+										</div>
+									</a>
+								)}
+							</div>
+						</div>
+					);
+				})()}
 		</div>
 	);
 }
