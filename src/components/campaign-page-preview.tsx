@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import type { TCampaignCollectionPageProps } from '@headout/espeon/components/CampaignCollectionPage';
-import { mapApiToCampaignProps } from '@/lib/campaign-api';
-import { MOCK_CAMPAIGN_DATA } from '@/lib/mock-campaign-data';
+import { buildPreviewPropsFromCollection } from '@/lib/campaign-api';
+import { useBoundStore } from '@/stores/store';
 
 const CampaignCollectionPage = dynamic(
 	() =>
@@ -18,7 +18,7 @@ const CampaignCollectionPage = dynamic(
 const PRODUCT_CARD_LABELS: TCampaignCollectionPageProps['productCardLabels'] = {
 	new: 'New',
 	from: 'From',
-	offPercentage: '% off',
+	offPercentage: '{0}% off',
 	cashbackText: 'Cashback',
 	priceVariesByGroupSize: 'Price varies by group size',
 };
@@ -35,9 +35,7 @@ type EditableField =
 	| 'discountBanners.0.preText'
 	| 'discountBanners.0.discountLabel'
 	| 'discountBanners.1.preText'
-	| 'discountBanners.1.discountLabel'
-	| 'discountBanners.2.preText'
-	| 'discountBanners.2.discountLabel';
+	| 'discountBanners.1.discountLabel';
 
 type EditedValues = Partial<Record<EditableField, string>>;
 
@@ -265,10 +263,7 @@ export function CampaignPagePreviewCard({
 			</div>
 
 			{open && (
-				<CampaignPagePreviewModal
-					prompt={prompt}
-					onClose={() => setOpen(false)}
-				/>
+				<CampaignPagePreviewModal onClose={() => setOpen(false)} />
 			)}
 		</>
 	);
@@ -277,27 +272,22 @@ export function CampaignPagePreviewCard({
 // ── Preview modal ──────────────────────────────────────────────────────────
 
 interface CampaignPagePreviewModalProps {
-	prompt: string;
 	onClose: () => void;
 }
 
-function CampaignPagePreviewModal({
-	prompt,
-	onClose,
-}: CampaignPagePreviewModalProps) {
-	const [status, setStatus] = useState<'loading' | 'ready' | 'error'>(
-		'loading',
-	);
-	const [pageProps, setPageProps] = useState<Omit<
-		TCampaignCollectionPageProps,
-		'currencyList' | 'productCardLabels' | 'isMobile'
-	> | null>(null);
+function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
+	const collectionData = useBoundStore(s => s.collectionData);
+	const campaignData = useBoundStore(s => s.campaignData);
+
+	const pageProps = useMemo(() => {
+		if (!collectionData || !campaignData) return null;
+		return buildPreviewPropsFromCollection(collectionData, campaignData);
+	}, [collectionData, campaignData]);
+
+	const status = pageProps ? 'ready' : 'error';
+
 	const [editedValues, setEditedValues] = useState<EditedValues>({});
 	const containerRef = useRef<HTMLDivElement>(null);
-	// Unique per modal-open: appended to banner imageUrl so the image is never
-	// served from HTTP cache when ShapeClipImage first mounts. Without this,
-	// cached `load` events fire synchronously before React attaches the handler,
-	// leaving imgDims at {w:0,h:0} and showing the gray placeholder forever.
 	const [cacheBust] = useState(() => Date.now());
 
 	const hasChanges = Object.keys(editedValues).length > 0;
@@ -320,12 +310,6 @@ function CampaignPagePreviewModal({
 			document.body.style.overflow = prev;
 		};
 	}, []);
-
-	// Use hardcoded mock data — swap for fetchCampaignContent(prompt) when API is stable
-	useEffect(() => {
-		setPageProps(mapApiToCampaignProps(MOCK_CAMPAIGN_DATA));
-		setStatus('ready');
-	}, [prompt]);
 
 	const onValueChange = useCallback(
 		(field: EditableField) => (value: string) => {
@@ -414,7 +398,7 @@ function CampaignPagePreviewModal({
 				onValueChange: onValueChange('topRated.title'),
 			},
 		},
-		discountBanners: [0, 1, 2].map(i => ({
+		discountBanners: [0, 1].map(i => ({
 			preText: {
 				editable: true,
 				onValueChange: onValueChange(
@@ -566,46 +550,6 @@ function CampaignPagePreviewModal({
 
 				{/* Content */}
 				<div style={{ flex: 1 }}>
-					{status === 'loading' && (
-						<div
-							style={{
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								height: '256px',
-							}}
-						>
-							<div
-								style={{
-									display: 'flex',
-									flexDirection: 'column',
-									alignItems: 'center',
-									gap: '12px',
-								}}
-							>
-								<div
-									style={{
-										width: '24px',
-										height: '24px',
-										borderRadius: 'var(--radius-full)',
-										border: '2px solid var(--color-semantic-surface-light-grey-3)',
-										borderTopColor:
-											'var(--color-semantic-text-grey-1)',
-										animation: 'spin 0.7s linear infinite',
-									}}
-								/>
-								<span
-									style={{
-										fontSize: '14px',
-										color: 'var(--color-semantic-text-disabled)',
-									}}
-								>
-									Loading preview…
-								</span>
-							</div>
-						</div>
-					)}
-
 					{status === 'error' && (
 						<div
 							style={{
