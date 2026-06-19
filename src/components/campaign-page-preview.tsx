@@ -9,6 +9,7 @@ import {
 	buildUpsertPayload,
 	createCollectionContent,
 	getCampaignData,
+	getCollectionContent,
 	SUPPORTED_LANGS,
 	type SearchContentBanner,
 	type SupportedLang,
@@ -285,6 +286,7 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 	const campaignData = useBoundStore(s => s.campaignData);
 	const searchData = useBoundStore(s => s.searchData);
 	const acceptedTgIds = useBoundStore(s => s.acceptedTgIds);
+	const setCampaignContext = useBoundStore(s => s.setCampaignContext);
 
 	const bannerImages: string[] = useMemo(() => {
 		const raw = searchData?.banner?.images;
@@ -445,6 +447,21 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 			);
 
 			await createCollectionContent(payload);
+
+			// Refetch collection data to reflect the saved changes in the store
+			const collectionId =
+				collectionData.collectionId ?? collectionData.id;
+			if (collectionId && searchData && campaignData) {
+				const freshCollection =
+					await getCollectionContent(collectionId);
+				setCampaignContext(
+					searchData,
+					acceptedTgIds,
+					freshCollection,
+					campaignData,
+				);
+			}
+
 			setSaveSuccess(true);
 			setEditedValues({});
 		} catch (e) {
@@ -455,11 +472,13 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 	}, [
 		searchData,
 		collectionData,
+		campaignData,
 		acceptedTgIds,
 		editedValues,
 		selectedImageUrl,
 		bannerImages,
 		lang,
+		setCampaignContext,
 	]);
 
 	return createPortal(
