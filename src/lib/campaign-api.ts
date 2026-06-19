@@ -390,6 +390,24 @@ export function buildCollectionPayload(
 	};
 }
 
+export function buildUpsertPayload(
+	searchData: SearchContentApiResponse,
+	acceptedTgIds: number[],
+	updatedBanner: SearchContentBanner,
+	heroImageUrl: string,
+): CreateCollectionPayload {
+	const base = buildCollectionPayload(searchData, acceptedTgIds);
+	return {
+		...base,
+		heroImageUrl,
+		cardImageUrl: heroImageUrl,
+		content: JSON.stringify(updatedBanner),
+		displayName:
+			resolveLocalized(updatedBanner.title, 'en') || base.displayName,
+		contentDescription: resolveLocalized(updatedBanner.description, 'en'),
+	};
+}
+
 // ─── Studio prop builders ────────────────────────────────────────────────────
 
 export interface PromoStudioProps {

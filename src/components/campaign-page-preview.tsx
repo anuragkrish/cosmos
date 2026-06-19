@@ -1,13 +1,16 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import type { TCampaignCollectionPageProps } from '@headout/espeon/components/CampaignCollectionPage';
 import {
 	buildPreviewPropsFromCollection,
+	buildUpsertPayload,
+	createCollectionContent,
 	getCampaignData,
 	SUPPORTED_LANGS,
+	type SearchContentBanner,
 	type SupportedLang,
 	type CampaignDataResponse,
 } from '@/lib/campaign-api';
@@ -31,17 +34,7 @@ const PRODUCT_CARD_LABELS: TCampaignCollectionPageProps['productCardLabels'] = {
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type EditableField =
-	| 'headerBanner.chipText'
-	| 'headerBanner.title'
-	| 'headerBanner.subtitle'
-	| 'headerBanner.ctaText'
-	| 'topOffers.title'
-	| 'topRated.title'
-	| 'discountBanners.0.preText'
-	| 'discountBanners.0.discountLabel'
-	| 'discountBanners.1.preText'
-	| 'discountBanners.1.discountLabel';
+type EditableField = 'headerBanner.title' | 'headerBanner.subtitle';
 
 type EditedValues = Partial<Record<EditableField, string>>;
 
@@ -178,7 +171,6 @@ export function CampaignPagePreviewCard({
 						</span>
 					</div>
 
-					{/* Preview overlay on hover */}
 					<button
 						onClick={() => setOpen(true)}
 						style={{
@@ -286,20 +278,35 @@ const LANG_LABELS: Record<SupportedLang, string> = {
 	fr: 'FR',
 	it: 'IT',
 };
+const SIDEBAR_WIDTH = 260;
 
 function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 	const collectionData = useBoundStore(s => s.collectionData);
 	const campaignData = useBoundStore(s => s.campaignData);
+	const searchData = useBoundStore(s => s.searchData);
+	const acceptedTgIds = useBoundStore(s => s.acceptedTgIds);
+
+	const bannerImages: string[] = useMemo(() => {
+		const raw = searchData?.banner?.images;
+		return Array.isArray(raw) ? raw.filter(Boolean) : [];
+	}, [searchData]);
 
 	const [lang, setLang] = useState<SupportedLang>('en');
 	const [localCampaignData, setLocalCampaignData] =
 		useState<CampaignDataResponse | null>(campaignData);
 	const [isLangLoading, setIsLangLoading] = useState(false);
+	const [selectedImageUrl, setSelectedImageUrl] = useState<string>(
+		bannerImages[0] ?? '',
+	);
+	const [editedValues, setEditedValues] = useState<EditedValues>({});
+	const [isSaving, setIsSaving] = useState(false);
+	const [saveError, setSaveError] = useState<string | null>(null);
+	const [saveSuccess, setSaveSuccess] = useState(false);
 
-	// Refetch campaign data whenever language changes (skip initial 'en' — already in store)
+	// Refetch campaign data when language changes
 	useEffect(() => {
 		if (!collectionData) return;
-		const collectionId = collectionData.id ?? collectionData.collectionId;
+		const collectionId = collectionData.collectionId ?? collectionData.id;
 		if (!collectionId) return;
 		if (lang === 'en') {
 			setLocalCampaignData(campaignData);
@@ -324,13 +331,6 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 
 	const status = pageProps ? 'ready' : 'error';
 
-	const [editedValues, setEditedValues] = useState<EditedValues>({});
-	const containerRef = useRef<HTMLDivElement>(null);
-	const [cacheBust] = useState(() => Date.now());
-
-	const hasChanges = Object.keys(editedValues).length > 0;
-	const changesCount = Object.keys(editedValues).length;
-
 	// Close on Escape
 	useEffect(() => {
 		const handler = (e: KeyboardEvent) => {
@@ -352,6 +352,7 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 	const onValueChange = useCallback(
 		(field: EditableField) => (value: string) => {
 			setEditedValues(prev => ({ ...prev, [field]: value }));
+			setSaveSuccess(false);
 		},
 		[],
 	);
@@ -361,59 +362,25 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 				...pageProps,
 				headerBanner: {
 					...pageProps.headerBanner,
-					chipText:
-						editedValues['headerBanner.chipText'] ??
-						pageProps.headerBanner.chipText,
 					title:
 						editedValues['headerBanner.title'] ??
 						pageProps.headerBanner.title,
 					subtitle:
 						editedValues['headerBanner.subtitle'] ??
 						pageProps.headerBanner.subtitle,
-					ctaText:
-						editedValues['headerBanner.ctaText'] ??
-						pageProps.headerBanner.ctaText,
 					image: {
 						...pageProps.headerBanner.image,
-						imageUrl: `${pageProps.headerBanner.image.imageUrl}?_t=${cacheBust}`,
+						imageUrl:
+							selectedImageUrl ||
+							pageProps.headerBanner.image.imageUrl,
 					},
 				},
-				topOffers: {
-					...pageProps.topOffers,
-					title:
-						editedValues['topOffers.title'] ??
-						pageProps.topOffers.title,
-				},
-				topRated: pageProps.topRated
-					? {
-							...pageProps.topRated,
-							title:
-								editedValues['topRated.title'] ??
-								pageProps.topRated.title,
-						}
-					: undefined,
-				discountBanners: pageProps.discountBanners?.map(
-					(banner, i) => ({
-						...banner,
-						preText:
-							editedValues[
-								`discountBanners.${i}.preText` as EditableField
-							] ?? banner.preText,
-						discountLabel:
-							editedValues[
-								`discountBanners.${i}.discountLabel` as EditableField
-							] ?? banner.discountLabel,
-					}),
-				),
 			}
 		: null;
 
 	const editConfig: TCampaignCollectionPageProps['editConfig'] = {
 		headerBanner: {
-			chipText: {
-				editable: true,
-				onValueChange: onValueChange('headerBanner.chipText'),
-			},
+			chipText: { editable: false },
 			title: {
 				editable: true,
 				onValueChange: onValueChange('headerBanner.title'),
@@ -424,33 +391,76 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 			},
 			ctaText: { editable: false },
 		},
-		topOffers: {
-			title: {
-				editable: true,
-				onValueChange: onValueChange('topOffers.title'),
-			},
-		},
-		topRated: {
-			title: {
-				editable: true,
-				onValueChange: onValueChange('topRated.title'),
-			},
-		},
-		discountBanners: [0, 1].map(i => ({
-			preText: {
-				editable: true,
-				onValueChange: onValueChange(
-					`discountBanners.${i}.preText` as EditableField,
-				),
-			},
-			discountLabel: {
-				editable: true,
-				onValueChange: onValueChange(
-					`discountBanners.${i}.discountLabel` as EditableField,
-				),
-			},
-		})),
 	};
+
+	const hasChanges =
+		Object.keys(editedValues).length > 0 ||
+		(bannerImages[0] !== undefined && selectedImageUrl !== bannerImages[0]);
+
+	const handleSave = useCallback(async () => {
+		if (!searchData || !collectionData) return;
+		setIsSaving(true);
+		setSaveError(null);
+		setSaveSuccess(false);
+		try {
+			const existingBanner: SearchContentBanner = (() => {
+				try {
+					return collectionData.content
+						? (JSON.parse(
+								collectionData.content as string,
+							) as SearchContentBanner)
+						: searchData.banner;
+				} catch {
+					return searchData.banner;
+				}
+			})();
+
+			const updatedTitle = (() => {
+				const edited = editedValues['headerBanner.title'];
+				if (!edited) return existingBanner.title;
+				const t = existingBanner.title;
+				if (typeof t === 'string') return edited;
+				return { ...t, [lang]: edited };
+			})();
+
+			const updatedDescription = (() => {
+				const edited = editedValues['headerBanner.subtitle'];
+				if (!edited) return existingBanner.description;
+				const d = existingBanner.description;
+				if (typeof d === 'string') return edited;
+				return { ...d, [lang]: edited };
+			})();
+
+			const updatedBanner: SearchContentBanner = {
+				...existingBanner,
+				title: updatedTitle,
+				description: updatedDescription,
+			};
+
+			const payload = buildUpsertPayload(
+				searchData,
+				acceptedTgIds,
+				updatedBanner,
+				selectedImageUrl || bannerImages[0] || '',
+			);
+
+			await createCollectionContent(payload);
+			setSaveSuccess(true);
+			setEditedValues({});
+		} catch (e) {
+			setSaveError(e instanceof Error ? e.message : 'Save failed');
+		} finally {
+			setIsSaving(false);
+		}
+	}, [
+		searchData,
+		collectionData,
+		acceptedTgIds,
+		editedValues,
+		selectedImageUrl,
+		bannerImages,
+		lang,
+	]);
 
 	return createPortal(
 		<div
@@ -464,24 +474,19 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 			}}
 		>
 			<div
-				ref={containerRef}
 				style={{
-					position: 'relative',
 					display: 'flex',
 					flexDirection: 'column',
 					background: 'var(--color-semantic-surface-light-white)',
 					width: '100%',
 					height: '100%',
-					overflowY: 'auto',
 				}}
 				onClick={e => e.stopPropagation()}
 			>
 				{/* Top bar */}
 				<div
 					style={{
-						position: 'sticky',
-						top: 0,
-						zIndex: 10,
+						flexShrink: 0,
 						display: 'flex',
 						alignItems: 'center',
 						justifyContent: 'space-between',
@@ -490,7 +495,6 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 						backdropFilter: 'blur(8px)',
 						borderBottom:
 							'1px solid var(--color-semantic-surface-light-grey-3)',
-						flexShrink: 0,
 					}}
 				>
 					<div
@@ -525,202 +529,374 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 									fontWeight: 400,
 								}}
 							>
-								· Double-click any text to edit
+								· Double-click banner text to edit
 							</span>
 						)}
 					</div>
-					<div
+					<button
+						onClick={onClose}
 						style={{
+							width: '28px',
+							height: '28px',
 							display: 'flex',
 							alignItems: 'center',
-							gap: '8px',
+							justifyContent: 'center',
+							borderRadius: 'var(--radius-8)',
+							color: 'var(--color-semantic-text-disabled)',
+							background: 'transparent',
+							border: 'none',
+							cursor: 'pointer',
 						}}
 					>
-						{hasChanges && (
-							<span
-								style={{
-									fontSize: '12px',
-									fontWeight: 500,
-									color: 'var(--color-semantic-text-grey-2)',
-									background:
-										'var(--color-semantic-surface-light-grey-2)',
-									padding: '4px 10px',
-									borderRadius: 'var(--radius-8)',
-									border: '1px solid var(--color-semantic-dividers-dark)',
-								}}
-							>
-								{changesCount} unsaved change
-								{changesCount !== 1 ? 's' : ''}
-							</span>
-						)}
-						<button
-							onClick={onClose}
-							style={{
-								width: '28px',
-								height: '28px',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								borderRadius: 'var(--radius-8)',
-								color: 'var(--color-semantic-text-disabled)',
-								background: 'transparent',
-								border: 'none',
-								cursor: 'pointer',
-								transition: 'background 0.12s, color 0.12s',
-							}}
+						<svg
+							width='14'
+							height='14'
+							viewBox='0 0 14 14'
+							fill='none'
 						>
-							<svg
-								width='14'
-								height='14'
-								viewBox='0 0 14 14'
-								fill='none'
-							>
-								<path
-									d='M2 2l10 10M12 2L2 12'
-									stroke='currentColor'
-									strokeWidth='1.5'
-									strokeLinecap='round'
-								/>
-							</svg>
-						</button>
-					</div>
+							<path
+								d='M2 2l10 10M12 2L2 12'
+								stroke='currentColor'
+								strokeWidth='1.5'
+								strokeLinecap='round'
+							/>
+						</svg>
+					</button>
 				</div>
 
-				{/* Content */}
-				<div style={{ flex: 1, position: 'relative' }}>
-					{/* Language sidebar */}
+				{/* Body: sidebar + scrollable content */}
+				<div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+					{/* Sidebar */}
 					<div
 						style={{
-							position: 'fixed',
-							left: '16px',
-							top: '50%',
-							transform: 'translateY(-50%)',
-							zIndex: 20,
+							width: SIDEBAR_WIDTH,
+							flexShrink: 0,
 							display: 'flex',
 							flexDirection: 'column',
-							gap: '4px',
-							background: 'rgba(255,255,255,0.95)',
-							backdropFilter: 'blur(8px)',
-							border: '1px solid var(--color-semantic-dividers-dark)',
-							borderRadius: 'var(--radius-12)',
-							padding: '6px',
-							boxShadow: '0 2px 12px rgba(0,0,0,0.1)',
+							borderRight:
+								'1px solid var(--color-semantic-surface-light-grey-3)',
+							background:
+								'var(--color-semantic-surface-light-grey-1)',
+							overflowY: 'auto',
 						}}
 					>
-						<span
-							style={{
-								fontSize: '9px',
-								fontWeight: 600,
-								color: 'var(--color-semantic-text-disabled)',
-								textAlign: 'center',
-								letterSpacing: '0.05em',
-								padding: '2px 4px',
-								textTransform: 'uppercase',
-							}}
-						>
-							Lang
-						</span>
-						{SUPPORTED_LANGS.map(l => (
-							<button
-								key={l}
-								onClick={() => setLang(l)}
-								style={{
-									fontSize: '11px',
-									fontWeight: lang === l ? 700 : 500,
-									color:
-										lang === l
-											? 'var(--color-semantic-surface-dark-black)'
-											: 'var(--color-semantic-text-grey-3)',
-									background:
-										lang === l
-											? 'var(--color-semantic-surface-light-grey-2)'
-											: 'transparent',
-									border: 'none',
-									borderRadius: 'var(--radius-8)',
-									padding: '5px 8px',
-									cursor: 'pointer',
-									transition: 'background 0.12s, color 0.12s',
-									minWidth: '32px',
-									textAlign: 'center',
-									opacity:
-										isLangLoading && lang !== l ? 0.5 : 1,
-								}}
-							>
-								{LANG_LABELS[l]}
-							</button>
-						))}
-						{isLangLoading && (
-							<div
-								style={{
-									width: '14px',
-									height: '14px',
-									borderRadius: '50%',
-									border: '2px solid var(--color-semantic-dividers-dark)',
-									borderTopColor:
-										'var(--color-semantic-text-grey-2)',
-									animation: 'spin 0.7s linear infinite',
-									alignSelf: 'center',
-									margin: '2px 0',
-								}}
-							/>
-						)}
-					</div>
-
-					{status === 'error' && (
+						{/* Language switcher */}
 						<div
 							style={{
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								height: '256px',
+								padding: '16px',
+								borderBottom:
+									'1px solid var(--color-semantic-dividers-dark)',
 							}}
 						>
+							<span
+								style={{
+									fontSize: '10px',
+									fontWeight: 600,
+									color: 'var(--color-semantic-text-disabled)',
+									textTransform: 'uppercase',
+									letterSpacing: '0.06em',
+								}}
+							>
+								Language
+							</span>
 							<div
 								style={{
 									display: 'flex',
-									flexDirection: 'column',
-									alignItems: 'center',
-									gap: '8px',
-									textAlign: 'center',
+									gap: '6px',
+									marginTop: '8px',
 								}}
 							>
-								<span
-									style={{
-										fontSize: '14px',
-										fontWeight: 500,
-										color: 'var(--color-semantic-text-grey-1)',
-									}}
-								>
-									Failed to load preview
-								</span>
-								<span
-									style={{
-										fontSize: '12px',
-										color: 'var(--color-semantic-text-disabled)',
-									}}
-								>
-									Could not fetch campaign data from the API
-								</span>
-								<button
-									onClick={onClose}
-									style={{
-										marginTop: '8px',
-										fontSize: '12px',
-										color: 'var(--color-semantic-text-grey-3)',
-										textDecoration: 'underline',
-										background: 'none',
-										border: 'none',
-										cursor: 'pointer',
-									}}
-								>
-									Close
-								</button>
+								{SUPPORTED_LANGS.map(l => (
+									<button
+										key={l}
+										onClick={() => {
+											setLang(l);
+											setEditedValues({});
+										}}
+										style={{
+											flex: 1,
+											fontSize: '12px',
+											fontWeight: lang === l ? 700 : 500,
+											color:
+												lang === l
+													? 'var(--color-semantic-surface-dark-black)'
+													: 'var(--color-semantic-text-grey-3)',
+											background:
+												lang === l
+													? '#fff'
+													: 'transparent',
+											border:
+												lang === l
+													? '1px solid var(--color-semantic-dividers-dark)'
+													: '1px solid transparent',
+											borderRadius: 'var(--radius-8)',
+											padding: '6px 0',
+											cursor: 'pointer',
+											transition: 'all 0.12s',
+											boxShadow:
+												lang === l
+													? '0 1px 3px rgba(0,0,0,0.08)'
+													: 'none',
+										}}
+									>
+										{LANG_LABELS[l]}
+									</button>
+								))}
 							</div>
+							{isLangLoading && (
+								<div
+									style={{
+										display: 'flex',
+										alignItems: 'center',
+										gap: '6px',
+										marginTop: '8px',
+									}}
+								>
+									<div
+										style={{
+											width: '12px',
+											height: '12px',
+											borderRadius: '50%',
+											border: '2px solid var(--color-semantic-dividers-dark)',
+											borderTopColor:
+												'var(--color-semantic-text-grey-2)',
+											animation:
+												'spin 0.7s linear infinite',
+										}}
+									/>
+									<span
+										style={{
+											fontSize: '11px',
+											color: 'var(--color-semantic-text-disabled)',
+										}}
+									>
+										Loading…
+									</span>
+								</div>
+							)}
 						</div>
-					)}
 
-					{status === 'ready' && mergedProps && (
-						<div style={{ paddingTop: '56px' }}>
+						{/* Hero image picker */}
+						{bannerImages.length > 0 && (
+							<div style={{ padding: '16px', flex: 1 }}>
+								<span
+									style={{
+										fontSize: '10px',
+										fontWeight: 600,
+										color: 'var(--color-semantic-text-disabled)',
+										textTransform: 'uppercase',
+										letterSpacing: '0.06em',
+									}}
+								>
+									Hero Image
+								</span>
+								<div
+									style={{
+										display: 'flex',
+										flexDirection: 'column',
+										gap: '8px',
+										marginTop: '10px',
+									}}
+								>
+									{bannerImages.map((url, i) => {
+										const isSelected =
+											selectedImageUrl === url;
+										return (
+											<button
+												key={i}
+												onClick={() =>
+													setSelectedImageUrl(url)
+												}
+												style={{
+													position: 'relative',
+													width: '100%',
+													aspectRatio: '16 / 9',
+													borderRadius:
+														'var(--radius-8)',
+													overflow: 'hidden',
+													border: isSelected
+														? '2px solid var(--color-semantic-surface-dark-black)'
+														: '2px solid transparent',
+													padding: 0,
+													cursor: 'pointer',
+													background:
+														'var(--colors-core-grey-100)',
+													transition:
+														'border-color 0.12s',
+													flexShrink: 0,
+												}}
+											>
+												{/* eslint-disable-next-line @next/next/no-img-element */}
+												<img
+													src={url}
+													alt={`Banner image ${i + 1}`}
+													style={{
+														width: '100%',
+														height: '100%',
+														objectFit: 'cover',
+														display: 'block',
+													}}
+												/>
+												{isSelected && (
+													<div
+														style={{
+															position:
+																'absolute',
+															top: '6px',
+															right: '6px',
+															width: '18px',
+															height: '18px',
+															borderRadius: '50%',
+															background:
+																'var(--color-semantic-surface-dark-black)',
+															display: 'flex',
+															alignItems:
+																'center',
+															justifyContent:
+																'center',
+														}}
+													>
+														<svg
+															width='10'
+															height='10'
+															viewBox='0 0 10 10'
+															fill='none'
+														>
+															<path
+																d='M2 5l2.5 2.5L8 3'
+																stroke='#fff'
+																strokeWidth='1.5'
+																strokeLinecap='round'
+																strokeLinejoin='round'
+															/>
+														</svg>
+													</div>
+												)}
+											</button>
+										);
+									})}
+								</div>
+							</div>
+						)}
+
+						{/* Save button */}
+						<div
+							style={{
+								padding: '16px',
+								borderTop:
+									'1px solid var(--color-semantic-dividers-dark)',
+								flexShrink: 0,
+							}}
+						>
+							{saveError && (
+								<span
+									style={{
+										display: 'block',
+										fontSize: '11px',
+										color: 'var(--colors-core-red-500)',
+										marginBottom: '8px',
+									}}
+								>
+									{saveError}
+								</span>
+							)}
+							{saveSuccess && (
+								<span
+									style={{
+										display: 'block',
+										fontSize: '11px',
+										color: 'var(--colors-core-okaygreen-600)',
+										marginBottom: '8px',
+									}}
+								>
+									Saved successfully
+								</span>
+							)}
+							<button
+								onClick={handleSave}
+								disabled={isSaving || !hasChanges}
+								style={{
+									width: '100%',
+									fontSize: '13px',
+									fontWeight: 600,
+									color: '#fff',
+									background: isSaving
+										? 'var(--color-semantic-text-disabled)'
+										: 'var(--color-semantic-surface-dark-black)',
+									border: 'none',
+									borderRadius: 'var(--radius-8)',
+									padding: '10px 0',
+									cursor:
+										isSaving || !hasChanges
+											? 'not-allowed'
+											: 'pointer',
+									opacity: !hasChanges && !isSaving ? 0.4 : 1,
+									transition:
+										'opacity 0.12s, background 0.12s',
+								}}
+							>
+								{isSaving ? 'Saving…' : 'Save changes'}
+							</button>
+						</div>
+					</div>
+
+					{/* Campaign page content */}
+					<div style={{ flex: 1, overflowY: 'auto' }}>
+						{status === 'error' && (
+							<div
+								style={{
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									height: '256px',
+								}}
+							>
+								<div
+									style={{
+										display: 'flex',
+										flexDirection: 'column',
+										alignItems: 'center',
+										gap: '8px',
+										textAlign: 'center',
+									}}
+								>
+									<span
+										style={{
+											fontSize: '14px',
+											fontWeight: 500,
+											color: 'var(--color-semantic-text-grey-1)',
+										}}
+									>
+										Failed to load preview
+									</span>
+									<span
+										style={{
+											fontSize: '12px',
+											color: 'var(--color-semantic-text-disabled)',
+										}}
+									>
+										Could not fetch campaign data from the
+										API
+									</span>
+									<button
+										onClick={onClose}
+										style={{
+											marginTop: '8px',
+											fontSize: '12px',
+											color: 'var(--color-semantic-text-grey-3)',
+											textDecoration: 'underline',
+											background: 'none',
+											border: 'none',
+											cursor: 'pointer',
+										}}
+									>
+										Close
+									</button>
+								</div>
+							</div>
+						)}
+
+						{status === 'ready' && mergedProps && (
 							<CampaignCollectionPage
 								{...mergedProps}
 								isMobile={false}
@@ -738,113 +914,7 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 									}
 								}}
 							/>
-						</div>
-					)}
-				</div>
-
-				{/* Save changes bottom banner */}
-				<div
-					style={{
-						position: 'sticky',
-						bottom: 0,
-						left: 0,
-						right: 0,
-						zIndex: 10,
-						transform: hasChanges
-							? 'translateY(0)'
-							: 'translateY(100%)',
-						opacity: hasChanges ? 1 : 0,
-						pointerEvents: hasChanges ? 'auto' : 'none',
-						transition: 'transform 0.25s ease, opacity 0.25s ease',
-					}}
-				>
-					<div
-						style={{
-							display: 'flex',
-							alignItems: 'center',
-							justifyContent: 'space-between',
-							padding: '12px 20px',
-							background:
-								'var(--color-semantic-surface-dark-black)',
-							color: '#fff',
-							boxShadow: '0 -2px 12px rgba(0,0,0,0.18)',
-						}}
-					>
-						<div
-							style={{
-								display: 'flex',
-								alignItems: 'center',
-								gap: '10px',
-							}}
-						>
-							<div
-								style={{
-									width: '6px',
-									height: '6px',
-									borderRadius: 'var(--radius-full)',
-									background:
-										'var(--colors-core-okaygreen-400)',
-									animation:
-										'pulse 1.5s ease-in-out infinite',
-								}}
-							/>
-							<span style={{ fontSize: '14px', fontWeight: 500 }}>
-								You have unsaved changes
-							</span>
-							<span
-								style={{
-									fontSize: '12px',
-									color: 'var(--color-semantic-icon-grey-disabled-2)',
-								}}
-							>
-								{changesCount} field
-								{changesCount !== 1 ? 's' : ''} edited
-							</span>
-						</div>
-						<div
-							style={{
-								display: 'flex',
-								alignItems: 'center',
-								gap: '8px',
-							}}
-						>
-							<button
-								onClick={() => setEditedValues({})}
-								style={{
-									fontSize: '12px',
-									color: 'var(--color-semantic-icon-grey-disabled-2)',
-									background: 'transparent',
-									border: 'none',
-									cursor: 'pointer',
-									padding: '6px 12px',
-									transition: 'color 0.12s',
-								}}
-							>
-								Discard
-							</button>
-							<button
-								style={{
-									fontSize: '12px',
-									background:
-										'var(--color-semantic-surface-light-white)',
-									color: 'var(--color-semantic-surface-dark-black)',
-									padding: '6px 16px',
-									borderRadius: 'var(--radius-8)',
-									fontWeight: 600,
-									border: 'none',
-									cursor: 'pointer',
-									transition: 'opacity 0.12s',
-								}}
-								onClick={() => {
-									console.log(
-										'[campaign-preview] save changes:',
-										editedValues,
-									);
-								}}
-							>
-								Save changes
-							</button>
-						</div>
+						)}
 					</div>
 				</div>
 			</div>
