@@ -8,6 +8,8 @@ import { ensureFonts } from '../../../remotion/fonts';
 import { ControlPanel } from './ControlPanel';
 import { SlideListEditor } from './SlideListEditor';
 import { StudioHeader } from './studio-header';
+import { useBoundStore } from '@/stores/store';
+import { buildDestinationsProps } from '@/lib/campaign-api';
 
 const POST_TEMPLATES = TEMPLATES.filter(t => t.category === 'posts');
 
@@ -15,9 +17,34 @@ const POST_TEMPLATES = TEMPLATES.filter(t => t.category === 'posts');
 const PREVIEW_W = 405; // 1080 × 0.375
 
 export function PostStudio() {
+	const searchData = useBoundStore(s => s.searchData);
+	const acceptedTgIds = useBoundStore(s => s.acceptedTgIds);
+
+	// The destinations template (index 1) gets seeded from campaign data;
+	// the guide template (index 0) uses its own defaults.
+	const destinationsInitialProps = useMemo(() => {
+		if (searchData)
+			return buildDestinationsProps(searchData, acceptedTgIds) as Record<
+				string,
+				unknown
+			>;
+		return (
+			POST_TEMPLATES.find(t => t.id === 'post-destinations')
+				?.defaultProps ?? POST_TEMPLATES[0].defaultProps
+		);
+	}, [searchData, acceptedTgIds]);
+
+	const getInitialProps = (id: string) => {
+		if (id === 'post-destinations') return destinationsInitialProps;
+		return (
+			POST_TEMPLATES.find(t => t.id === id)?.defaultProps ??
+			POST_TEMPLATES[0].defaultProps
+		);
+	};
+
 	const [templateId, setTemplateId] = useState(POST_TEMPLATES[0].id);
 	const [props, setProps] = useState<Record<string, unknown>>(
-		POST_TEMPLATES[0].defaultProps,
+		getInitialProps(POST_TEMPLATES[0].id),
 	);
 	const [activeSlideIndex, setActiveSlideIndex] = useState(0);
 	const [downloading, setDownloading] = useState(false);
@@ -36,7 +63,7 @@ export function PostStudio() {
 		const tpl = TEMPLATES.find(t => t.id === id);
 		if (!tpl) return;
 		setTemplateId(id);
-		setProps(tpl.defaultProps);
+		setProps(getInitialProps(id));
 		setActiveSlideIndex(0);
 	};
 

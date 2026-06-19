@@ -7,16 +7,26 @@ import { TEMPLATES } from '../../../remotion/registry';
 import { ensureFonts } from '../../../remotion/fonts';
 import { ControlPanel } from './ControlPanel';
 import { StudioHeader } from './studio-header';
+import { useBoundStore } from '@/stores/store';
+import { buildPromoProps } from '@/lib/campaign-api';
 
 const ADS_TEMPLATES = TEMPLATES.filter(t => t.category === 'ads');
 const PREVIEW_BOX = { width: 480, height: 600 };
 
 export function AssetStudio() {
-	// All three formats are driven by one shared, typed config — edit once,
-	// every asset updates live.
-	const [props, setProps] = useState<Record<string, unknown>>(
-		ADS_TEMPLATES[0].defaultProps,
-	);
+	const searchData = useBoundStore(s => s.searchData);
+	const acceptedTgIds = useBoundStore(s => s.acceptedTgIds);
+
+	const initialProps = useMemo(() => {
+		if (searchData)
+			return buildPromoProps(
+				searchData,
+				acceptedTgIds,
+			) as unknown as Record<string, unknown>;
+		return ADS_TEMPLATES[0].defaultProps;
+	}, [searchData, acceptedTgIds]);
+
+	const [props, setProps] = useState<Record<string, unknown>>(initialProps);
 	const [activeId, setActiveId] = useState(ADS_TEMPLATES[0].id);
 	const [downloading, setDownloading] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
