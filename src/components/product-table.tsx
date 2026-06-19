@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import {
 	type ColumnDef,
 	type RowData,
@@ -31,8 +30,13 @@ import {
 	SparklesIcon,
 	InfoIcon,
 	ExternalLinkIcon,
-	XIcon,
 } from 'lucide-react';
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import type { ProductDecision } from '@/lib/types';
 import type { SearchContentTourGroup } from '@/lib/campaign-api';
@@ -121,16 +125,16 @@ function SortableHeader({
 	);
 }
 
-// ─── AI insight popup (rendered via portal) ──────────────────────────────────
+// ─── AI insight dialog ────────────────────────────────────────────────────────
 
-function AiInsightPopup({
-	id,
+function AiInsightDialog({
+	open,
 	rank,
 	reason,
 	source,
 	onClose,
 }: {
-	id: number;
+	open: boolean;
 	rank: number;
 	reason?: string;
 	source?: CompetitorSource;
@@ -140,62 +144,16 @@ function AiInsightPopup({
 		? new URL(source.url).hostname.replace('www.', '')
 		: null;
 
-	// Close on Escape
-	useEffect(() => {
-		const handler = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') onClose();
-		};
-		document.addEventListener('keydown', handler);
-		return () => document.removeEventListener('keydown', handler);
-	}, [onClose]);
-
 	return (
-		<div
-			style={{
-				position: 'fixed',
-				inset: 0,
-				zIndex: 9999,
-				display: 'flex',
-				alignItems: 'center',
-				justifyContent: 'center',
-				background: 'rgba(0,0,0,0.35)',
-			}}
-			onClick={onClose}
-		>
-			<div
-				role='dialog'
-				aria-modal='true'
-				onClick={e => e.stopPropagation()}
-				style={{
-					background: '#fff',
-					borderRadius: 14,
-					padding: '20px 22px',
-					width: 340,
-					boxShadow: '0 8px 40px rgba(0,0,0,0.22)',
-					border: '1px solid rgba(124,58,237,0.12)',
-				}}
-			>
-				{/* header */}
-				<div
-					style={{
-						display: 'flex',
-						alignItems: 'center',
-						justifyContent: 'space-between',
-						marginBottom: 14,
-					}}
-				>
-					<div
-						style={{
-							display: 'flex',
-							alignItems: 'center',
-							gap: 8,
-						}}
-					>
+		<Dialog open={open} onOpenChange={v => !v && onClose()}>
+			<DialogContent className='max-w-sm gap-4'>
+				<DialogHeader>
+					<DialogTitle className='flex items-center gap-2 text-sm font-normal'>
 						<span
 							style={{
 								fontSize: '10px',
 								fontWeight: 700,
-								padding: '2px 7px',
+								padding: '2px 8px',
 								borderRadius: 99,
 								background:
 									'linear-gradient(135deg, #7c3aed, #4f46e5)',
@@ -210,7 +168,7 @@ function AiInsightPopup({
 								style={{
 									fontSize: '10px',
 									fontWeight: 600,
-									padding: '2px 7px',
+									padding: '2px 8px',
 									borderRadius: 99,
 									background: '#f3f0ff',
 									color: '#5b21b6',
@@ -219,54 +177,25 @@ function AiInsightPopup({
 								{sourceDomain}
 							</span>
 						)}
-					</div>
-					<button
-						onClick={onClose}
-						aria-label='Close'
-						style={{
-							background: 'none',
-							border: 'none',
-							cursor: 'pointer',
-							color: '#9ca3af',
-							padding: 2,
-							display: 'flex',
-							borderRadius: 4,
-						}}
-					>
-						<XIcon style={{ width: 15, height: 15 }} />
-					</button>
-				</div>
+					</DialogTitle>
+				</DialogHeader>
 
-				{/* reason */}
 				{reason && (
-					<p
-						style={{
-							fontSize: '13px',
-							lineHeight: 1.6,
-							color: '#111827',
-							margin: 0,
-							marginBottom: source ? 14 : 0,
-						}}
-					>
+					<p className='text-[13px] leading-relaxed text-gray-800 m-0'>
 						{reason}
 					</p>
 				)}
 
-				{/* competitor source link */}
 				{source && (
 					<a
 						href={source.url}
 						target='_blank'
 						rel='noopener noreferrer'
+						className='flex items-start gap-2 rounded-lg no-underline transition-opacity hover:opacity-80'
 						style={{
-							display: 'flex',
-							alignItems: 'flex-start',
-							gap: 8,
 							padding: '10px 12px',
-							borderRadius: 9,
 							background: '#f8f5ff',
 							border: '1px solid rgba(124,58,237,0.15)',
-							textDecoration: 'none',
 						}}
 					>
 						<ExternalLinkIcon
@@ -280,20 +209,15 @@ function AiInsightPopup({
 						/>
 						<div>
 							<div
-								style={{
-									fontSize: '11px',
-									fontWeight: 600,
-									color: '#5b21b6',
-									marginBottom: 2,
-								}}
+								className='text-[11px] font-semibold mb-0.5'
+								style={{ color: '#5b21b6' }}
 							>
 								{sourceDomain}
 							</div>
 							<div
+								className='text-[11px] leading-snug'
 								style={{
-									fontSize: '11px',
 									color: '#6d28d9',
-									lineHeight: 1.4,
 									wordBreak: 'break-word',
 								}}
 							>
@@ -302,8 +226,8 @@ function AiInsightPopup({
 						</div>
 					</a>
 				)}
-			</div>
-		</div>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -1130,20 +1054,14 @@ export function ProductTable({
 				</span>
 			</div>
 
-			{/* AI insight popup — rendered via portal so it sits directly on body,
-			    escaping any parent transform/filter stacking contexts */}
-			{openInfoId !== null &&
-				typeof document !== 'undefined' &&
-				createPortal(
-					<AiInsightPopup
-						id={openInfoId}
-						rank={aiPicks.indexOf(openInfoId) + 1}
-						reason={aiReasons[openInfoId]}
-						source={aiSources[openInfoId]}
-						onClose={() => setOpenInfoId(null)}
-					/>,
-					document.body,
-				)}
+			{/* AI insight dialog */}
+			<AiInsightDialog
+				open={openInfoId !== null}
+				rank={openInfoId !== null ? aiPicks.indexOf(openInfoId) + 1 : 0}
+				reason={openInfoId !== null ? aiReasons[openInfoId] : undefined}
+				source={openInfoId !== null ? aiSources[openInfoId] : undefined}
+				onClose={() => setOpenInfoId(null)}
+			/>
 		</div>
 	);
 }
