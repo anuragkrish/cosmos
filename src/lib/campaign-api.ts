@@ -178,7 +178,8 @@ export function buildPreviewPropsFromCollection(
 	TCampaignCollectionPageProps,
 	'currencyList' | 'productCardLabels' | 'isMobile'
 > {
-	// Parse the banner from the stringified content field
+	// Parse banner from the stringified content field.
+	// Content may be { banner, meta } (new shape) or a bare banner object (legacy).
 	let banner: SearchContentBanner = {
 		title: '',
 		description: '',
@@ -186,9 +187,8 @@ export function buildPreviewPropsFromCollection(
 	};
 	try {
 		if (collectionResponse.content) {
-			banner = JSON.parse(
-				collectionResponse.content,
-			) as SearchContentBanner;
+			const parsed = JSON.parse(collectionResponse.content);
+			banner = parsed?.banner ?? parsed;
 		}
 	} catch {
 		// keep default empty banner
@@ -379,7 +379,7 @@ export function buildCollectionPayload(
 		name: urlSlug,
 		displayName: resolveLocalized(data.banner?.title, 'en') || 'Campaign',
 		city: data.location?.cityCode ?? '',
-		content: JSON.stringify(data.banner),
+		content: JSON.stringify({ banner: data.banner, meta: data.meta }),
 		contentDescription: resolveLocalized(data.banner?.description, 'en'),
 		tourGroups: acceptedTgIds,
 		urlSlug,
@@ -401,7 +401,10 @@ export function buildUpsertPayload(
 		...base,
 		heroImageUrl,
 		cardImageUrl: heroImageUrl,
-		content: JSON.stringify(updatedBanner),
+		content: JSON.stringify({
+			banner: updatedBanner,
+			meta: searchData.meta,
+		}),
 		displayName:
 			resolveLocalized(updatedBanner.title, 'en') || base.displayName,
 		contentDescription: resolveLocalized(updatedBanner.description, 'en'),

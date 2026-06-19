@@ -407,11 +407,9 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 		try {
 			const existingBanner: SearchContentBanner = (() => {
 				try {
-					return collectionData.content
-						? (JSON.parse(
-								collectionData.content as string,
-							) as SearchContentBanner)
-						: searchData.banner;
+					if (!collectionData.content) return searchData.banner;
+					const parsed = JSON.parse(collectionData.content as string);
+					return parsed?.banner ?? parsed;
 				} catch {
 					return searchData.banner;
 				}
