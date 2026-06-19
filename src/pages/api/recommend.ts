@@ -22,7 +22,20 @@ export interface RecommendResponse {
 	searchContext: string;
 }
 
+const COMPETITORS = ['getyourguide.com', 'klook.com', 'viator.com'];
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractText(response: any): string {
+	return (response.output ?? [])
+		.filter((b: { type: string }) => b.type === 'message')
+		.flatMap((b: { type: string; content?: unknown[] }) => b.content ?? [])
+		.filter((c: { type: string }) => c.type === 'output_text')
+		.map((c: { type: string; text?: string }) => c.text ?? '')
+		.join('\n')
+		.trim();
+}
 
 export default async function handler(
 	req: NextApiRequest,
@@ -40,26 +53,39 @@ export default async function handler(
 			.json({ error: 'query and products are required' });
 	}
 
-	// Step 1: web search to understand what travellers love for this campaign
-	const searchResponse = await openai.responses.create({
-		model: 'gpt-4o',
-		tools: [{ type: 'web_search_preview' }],
-		input: `You are a travel trends researcher. The user is building a marketing campaign with the prompt: "${query}".
+	// Step 1: run traveller intent search + competitor research in parallel
+	const [travellersResponse, competitorResponse] = await Promise.all([
+		// What do travellers love for this event/destination?
+		openai.responses.create({
+			model: 'gpt-4o',
+			tools: [{ type: 'web_search_preview' }],
+			input: `You are a travel trends researcher. The user is building a marketing campaign with the prompt: "${query}".
 Search the web to find what experiences, activities, and attractions travellers most enjoy for this type of event/destination.
 Return a concise summary (150-200 words) of the top keywords, themes, and specific experiences travellers seek.
 Focus on things like event names, landmark activities, popular categories, and seasonal highlights.`,
-	});
+		}),
 
-	const searchContext =
-		searchResponse.output
-			.filter(b => b.type === 'message')
-			.flatMap(b => (b.type === 'message' ? b.content : []))
-			.filter(c => c.type === 'output_text')
-			.map(c => (c.type === 'output_text' ? c.text : ''))
-			.join('\n')
-			.trim() || 'No additional context found.';
+		// What are the top competitor OTAs featuring for this query?
+		openai.responses.create({
+			model: 'gpt-4o',
+			tools: [{ type: 'web_search_preview' }],
+			input: `You are a travel market analyst. Search ${COMPETITORS.join(', ')} for experiences and activities related to: "${query}".
+Look at what these competitor platforms are currently featuring, promoting, or ranking highly.
+Summarise in 150-200 words:
+- Which experience categories appear most (tours, cruises, tickets, etc.)
+- Specific product types or named attractions that appear across multiple platforms
+- Any pricing tiers or experience formats (small group, skip-the-line, night experiences, etc.) that dominate
+This reveals what the market considers the most commercially viable products for this campaign.`,
+		}),
+	]);
 
-	// Step 2: rank products using the search context
+	const travellersContext =
+		extractText(travellersResponse) || 'No traveller context found.';
+	const competitorContext =
+		extractText(competitorResponse) || 'No competitor context found.';
+	const searchContext = `TRAVELLER INTENT:\n${travellersContext}\n\nCOMPETITOR MARKET SIGNALS:\n${competitorContext}`;
+
+	// Step 2: rank products using both signals
 	const slim = products.map(p => ({
 		id: p.id,
 		name: p.displayName,
@@ -81,16 +107,24 @@ Focus on things like event names, landmark activities, popular categories, and s
 				content: `You are a travel marketing expert helping curate the best products for a campaign.
 Campaign prompt: "${query}"
 
-Web research context about what travellers love for this campaign:
-${searchContext}
+You have two research signals to guide your selection:
 
-Your job: from the product list below, pick the top 15 products that best match the campaign theme and traveller interests.
-Consider: relevance to the event/destination, category fit, rating quality, and alignment with researched traveller preferences.
+1. TRAVELLER INTENT — what travellers are searching for and want to experience:
+${travellersContext}
+
+2. COMPETITOR MARKET SIGNALS — what GetYourGuide, Klook, and Viator are featuring for this query:
+${competitorContext}
+
+Use both signals together. Competitor data tells you which experience types have proven commercial demand.
+Traveller intent tells you what emotional and practical needs to address.
+
+Your job: from the product list below, pick the top 15 products that best match the campaign.
+Consider: category alignment with competitor bestsellers, relevance to traveller intent, rating quality.
 
 Return a JSON object with this exact shape:
 {
   "recommendations": [
-    { "id": <product id>, "reason": "<one concise sentence explaining why this product fits the campaign>" },
+    { "id": <product id>, "reason": "<one concise sentence explaining why this product fits — reference a specific signal>" },
     ...
   ]
 }
@@ -98,7 +132,7 @@ Return a JSON object with this exact shape:
 Rules:
 - Only include IDs that exist in the product list
 - Return at most 15 items, ranked best first
-- Each reason should be specific to that product and the campaign — mention the event, vibe, or traveller intent it matches
+- Each reason must be specific — mention the event/vibe/competitor category it aligns with
 - Keep each reason under 20 words`,
 			},
 			{
