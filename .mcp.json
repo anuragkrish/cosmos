@@ -1,0 +1,15 @@
+{
+	"mcpServers": {
+		"oak": {
+			"type": "http",
+			"url": "https://oak.headout.com/mcp",
+			"headers": {
+				"Authorization": "Bearer <token>"
+			}
+		},
+		"context7": {
+			"type": "http",
+			"url": "https://mcp.context7.com/mcp"
+		}
+	}
+}

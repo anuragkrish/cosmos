@@ -1,0 +1,101 @@
+name: 'Build & Upload'
+on:
+    push:
+        branches:
+            - '*'
+        tags:
+            - 'v*'
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        name: 'Build'
+        strategy:
+            matrix:
+                env: ['test', 'production']
+                hasTag:
+                    - ${{ startsWith(github.ref, 'refs/tags/') }}
+                exclude:
+                    - hasTag: false
+                      env: 'production'
+                    - hasTag: true
+                      env: 'test'
+        env:
+            APP_ENV: ${{ matrix.env }}
+        steps:
+            - uses: actions/checkout@v2
+              with:
+                  persist-credentials: false
+
+            - name: Extract branch name
+              run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+              id: extract_branch
+
+            - name: Extract SHORT_SHA
+              run: echo "SHORT_SHA=`echo ${GITHUB_SHA} | cut -c1-8`" >> $GITHUB_ENV
+
+            - name: set aws credentials
+              id: set-aws-credentials
+              run: |
+                  if [[ $APP_ENV == "test" ]]; then
+                    echo "STATIC_FILES_BUCKET=web-static-assets-test-1" >> "$GITHUB_ENV"
+                    echo "AWS_REGION=ap-south-1" >> "$GITHUB_ENV"
+                    echo "AWS_ACCESS_KEY=${{ secrets.AWS_HEADOUT_TEST_ACCESS_KEY }}" >> "$GITHUB_ENV"
+                    echo "AWS_SECRET_KEY=${{ secrets.AWS_HEADOUT_TEST_SECRET_KEY }}" >> "$GITHUB_ENV"
+                  else
+                    echo "STATIC_FILES_BUCKET=web-static-assets-production" >> "$GITHUB_ENV"
+                    echo "AWS_REGION=us-east-1" >> "$GITHUB_ENV"
+                    echo "AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY_ID }}" >> "$GITHUB_ENV"
+                    echo "AWS_SECRET_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> "$GITHUB_ENV"
+                  fi
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v1
+              with:
+                  aws-access-key-id: ${{ env.AWS_ACCESS_KEY }}
+                  aws-secret-access-key: ${{ env.AWS_SECRET_KEY }}
+                  aws-region: ${{ env.AWS_REGION }}
+
+            - name: Login to Amazon ECR
+              id: login-ecr
+              uses: aws-actions/amazon-ecr-login@v1
+
+            - name: buildah login
+              env:
+                  AWS_REGION: ${{ env.AWS_REGION }}
+              run: |
+                  aws ecr get-login-password --region $AWS_REGION > /tmp/ecr_password
+
+                  sudo buildah login --username AWS --password $(cat /tmp/ecr_password) ${{ steps.login-ecr.outputs.registry }}
+
+            - name: Extract version from tag
+              if: ${{ matrix.hasTag }}
+              run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+            - name: Buildah build and push
+              run: |
+                  if [[ ${{ matrix.hasTag }} == 'true' ]]; then
+                    IMAGE_TAG=${VERSION}
+                  else
+                    IMAGE_TAG=${{ steps.extract_branch.outputs.branch }}-${SHORT_SHA}
+                  fi
+                  echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
+
+                  sudo buildah bud \
+                  --no-cache \
+                  -f Dockerfile \
+                   --build-arg NPM_TOKEN=${{ secrets.GH_TOKEN }} \
+                  --build-arg APP_ENV=$APP_ENV \
+                  --build-arg IMAGE_TAG=$IMAGE_TAG \
+                  -t ${{ steps.login-ecr.outputs.registry }}/container-images/headout-<APPLICATION_NAME>:$IMAGE_TAG . \
+                  && \
+                  sudo buildah push ${{ steps.login-ecr.outputs.registry }}/container-images/headout-<APPLICATION_NAME>:$IMAGE_TAG
+
+            - name: Post Image Tag
+              run: |
+                  echo '#### Docker Image Version' >> $GITHUB_STEP_SUMMARY
+                  echo '```' >> $GITHUB_STEP_SUMMARY
+                  echo "${{env.IMAGE_TAG}}" >> $GITHUB_STEP_SUMMARY
+                  echo '```' >> $GITHUB_STEP_SUMMARY
+                  echo '' >> $GITHUB_STEP_SUMMARY
+                  echo "---" >> $GITHUB_STEP_SUMMARY

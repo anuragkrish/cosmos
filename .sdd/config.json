@@ -1,0 +1,38 @@
+{
+  "version": "1.0.0",
+  "project": "ai-template",
+  "sddEnabled": true,
+  "constitutionPath": ".sdd/constitution.md",
+  "templatesPath": ".sdd/templates/",
+  "specsPath": ".sdd/specs/",
+  "plansPath": ".sdd/plans/",
+  "commandsPath": ".sdd/commands/",
+  "framework": "nextjs",
+  "language": "typescript",
+  "testFramework": "jest",
+  "packageManager": "pnpm",
+  "defaultBranchPattern": "feature/{feature-name}",
+  "constitutionalArticles": [
+    "Article I: The Library-First Principle",
+    "Article II: The CLI Interface Mandate", 
+    "Article III: The Test-First Imperative",
+    "Article IV: The Specification Supremacy",
+    "Article V: The Simplicity Doctrine",
+    "Article VI: The Documentation Imperative",
+    "Article VII: The Reversibility Principle",
+    "Article VIII: The Transparency Rule",
+    "Article IX: The Evolution Covenant"
+  ],
+  "validation": {
+    "enforceConstitution": true,
+    "requireSpecBeforeImplementation": true,
+    "requireTestsBeforeCode": true,
+    "requireDocumentation": true
+  },
+  "aiIntegration": {
+    "enabled": true,
+    "specGeneration": true,
+    "planGeneration": true,
+    "codeGeneration": true
+  }
+}
