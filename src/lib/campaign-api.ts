@@ -170,6 +170,35 @@ export async function getCampaignData(
 	return res.json();
 }
 
+export interface CollectionSummary {
+	id: number | string;
+	name?: string;
+	displayName?: string;
+	urlSlug?: string;
+	city?: string;
+	heroImageUrl?: string;
+	cardImageUrl?: string;
+	[key: string]: unknown;
+}
+
+export async function getCollections(): Promise<CollectionSummary[]> {
+	const res = await fetch(`${BASE_URL}/collections`, {
+		headers: { 'Content-Type': 'application/json' },
+	});
+	if (!res.ok) throw new Error(`Get collections API error: ${res.status}`);
+	return res.json();
+}
+
+export async function deleteCollection(
+	collectionId: number | string,
+): Promise<void> {
+	const res = await fetch(`${BASE_URL}/collections/${collectionId}`, {
+		method: 'DELETE',
+		headers: { 'Content-Type': 'application/json' },
+	});
+	if (!res.ok) throw new Error(`Delete collection API error: ${res.status}`);
+}
+
 export function buildPreviewPropsFromCollection(
 	collectionResponse: CollectionContentResponse,
 	campaignDataResponse: CampaignDataResponse,

@@ -1,29 +1,27 @@
-/**
- * AppHeader — shared navigation bar across the Chat and Results screens.
- *
- * Matches the Campaign Studio design:
- * - Chat screen:   "Headout" + "COSMOS" pill  +  "New campaign" black pill CTA
- * - Results screen: "Headout" + "Campaign Studio" pill  +  "＋ New brief" text link
- *
- * Eevee tokens used for all styling (no shadows — left as design default).
- */
+'use client';
 
 import type { ReactNode } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 
 interface AppHeaderProps {
-	/** Pill label next to the wordmark */
 	label?: string;
-	/** Slot for the right-side action — passed as JSX from the parent screen */
 	action?: ReactNode;
-	/** Makes the header sticky (Results screen) vs. relative (Chat screen) */
 	sticky?: boolean;
 }
+
+const NAV_LINKS = [
+	{ href: '/', label: 'New Campaign' },
+	{ href: '/previous-campaigns', label: 'Previous Campaigns' },
+];
 
 export function AppHeader({
 	label = 'COSMOS',
 	action,
 	sticky = false,
 }: AppHeaderProps) {
+	const router = useRouter();
+
 	return (
 		<header
 			className={`
@@ -57,6 +55,48 @@ export function AppHeader({
 					{label}
 				</span>
 			</div>
+
+			{/* Center — nav links */}
+			<nav className='flex items-center gap-1'>
+				{NAV_LINKS.map(link => {
+					const isActive = router.pathname === link.href;
+					return (
+						<Link
+							key={link.href}
+							href={link.href}
+							style={{
+								fontSize: '13px',
+								fontWeight: isActive ? 500 : 400,
+								color: isActive
+									? 'var(--color-semantic-text-grey-1)'
+									: 'var(--color-semantic-text-grey-3)',
+								padding: '6px 12px',
+								borderRadius: 'var(--radius-full)',
+								textDecoration: 'none',
+								background: isActive
+									? 'var(--color-semantic-surface-light-grey-2)'
+									: 'transparent',
+								transition: 'background 0.12s, color 0.12s',
+							}}
+							onMouseEnter={e => {
+								if (!isActive)
+									(
+										e.currentTarget as HTMLElement
+									).style.background =
+										'var(--color-semantic-surface-light-grey-1)';
+							}}
+							onMouseLeave={e => {
+								if (!isActive)
+									(
+										e.currentTarget as HTMLElement
+									).style.background = 'transparent';
+							}}
+						>
+							{link.label}
+						</Link>
+					);
+				})}
+			</nav>
 
 			{/* Right — action slot */}
 			{action && <div>{action}</div>}
