@@ -5,10 +5,22 @@ import type {
 
 const BASE_URL = 'https://poc-shv.api.dev-headout.com/api/v6/ai';
 
+export const SUPPORTED_LANGS = ['en', 'fr', 'it'] as const;
+export type SupportedLang = (typeof SUPPORTED_LANGS)[number];
+
 export interface SearchContentBanner {
-	title: string;
-	description: string;
+	title: string | Record<string, string>;
+	description: string | Record<string, string>;
 	images: string[];
+}
+
+function resolveLocalized(
+	value: string | Record<string, string> | undefined,
+	lang: string,
+): string {
+	if (!value) return '';
+	if (typeof value === 'string') return value;
+	return value[lang] ?? value['en'] ?? Object.values(value)[0] ?? '';
 }
 
 export interface SearchContentLocation {
@@ -148,9 +160,10 @@ export interface CampaignDataResponse {
 
 export async function getCampaignData(
 	collectionId: number | string,
+	language: SupportedLang = 'en',
 ): Promise<CampaignDataResponse> {
 	const res = await fetch(
-		`${BASE_URL}/campaign-data/collection/${collectionId}`,
+		`${BASE_URL}/campaign-data/collection/${collectionId}?language=${language}`,
 		{ headers: { 'Content-Type': 'application/json' } },
 	);
 	if (!res.ok) throw new Error(`Get campaign data API error: ${res.status}`);
@@ -160,6 +173,7 @@ export async function getCampaignData(
 export function buildPreviewPropsFromCollection(
 	collectionResponse: CollectionContentResponse,
 	campaignDataResponse: CampaignDataResponse,
+	lang: SupportedLang = 'en',
 ): Omit<
 	TCampaignCollectionPageProps,
 	'currencyList' | 'productCardLabels' | 'isMobile'
@@ -179,6 +193,9 @@ export function buildPreviewPropsFromCollection(
 	} catch {
 		// keep default empty banner
 	}
+
+	const bannerTitle = resolveLocalized(banner.title, lang);
+	const bannerDescription = resolveLocalized(banner.description, lang);
 
 	const allProducts = (campaignDataResponse.tourGroups ??
 		[]) as SearchContentTourGroup[];
@@ -315,12 +332,12 @@ export function buildPreviewPropsFromCollection(
 	}
 
 	return {
-		lang: 'en',
+		lang,
 		headerBanner: {
 			backgroundColor: '#1A1A2E',
 			chipText: '',
-			title: banner.title ?? '',
-			subtitle: banner.description ?? '',
+			title: bannerTitle,
+			subtitle: bannerDescription,
 			ctaText: 'Explore Deals',
 			ctaHref: '#',
 			image: {
@@ -353,15 +370,17 @@ export function buildCollectionPayload(
 	acceptedTgIds: number[],
 ): CreateCollectionPayload {
 	const metaSlug = data.meta?.urlSlug as string | undefined;
-	const derivedSlug = toKebabCase(data.banner?.title ?? 'campaign');
+	const derivedSlug = toKebabCase(
+		resolveLocalized(data.banner?.title, 'en') || 'campaign',
+	);
 	const urlSlug = metaSlug ?? derivedSlug;
 
 	return {
 		name: urlSlug,
-		displayName: data.banner?.title ?? 'Campaign',
+		displayName: resolveLocalized(data.banner?.title, 'en') || 'Campaign',
 		city: data.location?.cityCode ?? '',
 		content: JSON.stringify(data.banner),
-		contentDescription: data.banner?.description ?? '',
+		contentDescription: resolveLocalized(data.banner?.description, 'en'),
 		tourGroups: acceptedTgIds,
 		urlSlug,
 		heroImageUrl: data.banner?.images?.[0] ?? '',
@@ -509,8 +528,8 @@ export function mapApiToCampaignProps(
 		headerBanner: {
 			backgroundColor: data.themeColor || '#E67E22',
 			chipText: data.location?.cityName ?? '',
-			title: data.banner?.title ?? 'Campaign',
-			subtitle: data.banner?.description ?? '',
+			title: resolveLocalized(data.banner?.title, lang) || 'Campaign',
+			subtitle: resolveLocalized(data.banner?.description, lang),
 			ctaText: 'Explore Deals',
 			ctaHref: '#',
 			image: {

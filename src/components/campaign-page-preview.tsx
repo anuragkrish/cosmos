@@ -4,7 +4,13 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import type { TCampaignCollectionPageProps } from '@headout/espeon/components/CampaignCollectionPage';
-import { buildPreviewPropsFromCollection } from '@/lib/campaign-api';
+import {
+	buildPreviewPropsFromCollection,
+	getCampaignData,
+	SUPPORTED_LANGS,
+	type SupportedLang,
+	type CampaignDataResponse,
+} from '@/lib/campaign-api';
 import { useBoundStore } from '@/stores/store';
 
 const CampaignCollectionPage = dynamic(
@@ -275,14 +281,46 @@ interface CampaignPagePreviewModalProps {
 	onClose: () => void;
 }
 
+const LANG_LABELS: Record<SupportedLang, string> = {
+	en: 'EN',
+	fr: 'FR',
+	it: 'IT',
+};
+
 function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 	const collectionData = useBoundStore(s => s.collectionData);
 	const campaignData = useBoundStore(s => s.campaignData);
 
+	const [lang, setLang] = useState<SupportedLang>('en');
+	const [localCampaignData, setLocalCampaignData] =
+		useState<CampaignDataResponse | null>(campaignData);
+	const [isLangLoading, setIsLangLoading] = useState(false);
+
+	// Refetch campaign data whenever language changes (skip initial 'en' — already in store)
+	useEffect(() => {
+		if (!collectionData) return;
+		const collectionId = collectionData.id ?? collectionData.collectionId;
+		if (!collectionId) return;
+		if (lang === 'en') {
+			setLocalCampaignData(campaignData);
+			return;
+		}
+		setIsLangLoading(true);
+		getCampaignData(collectionId, lang)
+			.then(data => setLocalCampaignData(data))
+			.catch(() => setLocalCampaignData(campaignData))
+			.finally(() => setIsLangLoading(false));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [lang]);
+
 	const pageProps = useMemo(() => {
-		if (!collectionData || !campaignData) return null;
-		return buildPreviewPropsFromCollection(collectionData, campaignData);
-	}, [collectionData, campaignData]);
+		if (!collectionData || !localCampaignData) return null;
+		return buildPreviewPropsFromCollection(
+			collectionData,
+			localCampaignData,
+			lang,
+		);
+	}, [collectionData, localCampaignData, lang]);
 
 	const status = pageProps ? 'ready' : 'error';
 
@@ -549,7 +587,85 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 				</div>
 
 				{/* Content */}
-				<div style={{ flex: 1 }}>
+				<div style={{ flex: 1, position: 'relative' }}>
+					{/* Language sidebar */}
+					<div
+						style={{
+							position: 'fixed',
+							left: '16px',
+							top: '50%',
+							transform: 'translateY(-50%)',
+							zIndex: 20,
+							display: 'flex',
+							flexDirection: 'column',
+							gap: '4px',
+							background: 'rgba(255,255,255,0.95)',
+							backdropFilter: 'blur(8px)',
+							border: '1px solid var(--color-semantic-dividers-dark)',
+							borderRadius: 'var(--radius-12)',
+							padding: '6px',
+							boxShadow: '0 2px 12px rgba(0,0,0,0.1)',
+						}}
+					>
+						<span
+							style={{
+								fontSize: '9px',
+								fontWeight: 600,
+								color: 'var(--color-semantic-text-disabled)',
+								textAlign: 'center',
+								letterSpacing: '0.05em',
+								padding: '2px 4px',
+								textTransform: 'uppercase',
+							}}
+						>
+							Lang
+						</span>
+						{SUPPORTED_LANGS.map(l => (
+							<button
+								key={l}
+								onClick={() => setLang(l)}
+								style={{
+									fontSize: '11px',
+									fontWeight: lang === l ? 700 : 500,
+									color:
+										lang === l
+											? 'var(--color-semantic-surface-dark-black)'
+											: 'var(--color-semantic-text-grey-3)',
+									background:
+										lang === l
+											? 'var(--color-semantic-surface-light-grey-2)'
+											: 'transparent',
+									border: 'none',
+									borderRadius: 'var(--radius-8)',
+									padding: '5px 8px',
+									cursor: 'pointer',
+									transition: 'background 0.12s, color 0.12s',
+									minWidth: '32px',
+									textAlign: 'center',
+									opacity:
+										isLangLoading && lang !== l ? 0.5 : 1,
+								}}
+							>
+								{LANG_LABELS[l]}
+							</button>
+						))}
+						{isLangLoading && (
+							<div
+								style={{
+									width: '14px',
+									height: '14px',
+									borderRadius: '50%',
+									border: '2px solid var(--color-semantic-dividers-dark)',
+									borderTopColor:
+										'var(--color-semantic-text-grey-2)',
+									animation: 'spin 0.7s linear infinite',
+									alignSelf: 'center',
+									margin: '2px 0',
+								}}
+							/>
+						)}
+					</div>
+
 					{status === 'error' && (
 						<div
 							style={{
