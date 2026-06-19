@@ -4,9 +4,11 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
 	type ColumnDef,
 	type RowData,
+	type SortingState,
 	flexRender,
 	getCoreRowModel,
 	getPaginationRowModel,
+	getSortedRowModel,
 	useReactTable,
 } from '@tanstack/react-table';
 import {
@@ -23,9 +25,13 @@ import {
 	XIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
+	ChevronsUpDownIcon,
+	ChevronUpIcon,
+	ChevronDownIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { RelatedProduct, ProductDecision } from '@/lib/types';
+import type { ProductDecision } from '@/lib/types';
+import type { SearchContentTourGroup } from '@/lib/campaign-api';
 
 // ─── TanStack Table meta ─────────────────────────────────────────────────────
 declare module '@tanstack/react-table' {
@@ -56,9 +62,58 @@ function formatCount(n: number): string {
 	return n.toLocaleString();
 }
 
+function getDuration(tg: SearchContentTourGroup): string | null {
+	const d = tg.descriptors?.find(x => x.code === 'DURATION');
+	return d?.description ?? null;
+}
+
+// ─── Sortable header ─────────────────────────────────────────────────────────
+
+function SortableHeader({
+	label,
+	sorted,
+	onSort,
+}: {
+	label: string;
+	sorted: false | 'asc' | 'desc';
+	onSort: () => void;
+}) {
+	return (
+		<button
+			onClick={onSort}
+			className='inline-flex items-center gap-1 cursor-pointer select-none group'
+			style={{
+				background: 'none',
+				border: 'none',
+				padding: 0,
+				font: 'inherit',
+				color: 'inherit',
+			}}
+		>
+			{label}
+			<span
+				style={{
+					color: sorted
+						? 'var(--color-semantic-surface-dark-black)'
+						: 'var(--color-semantic-icon-grey-disabled-2)',
+					display: 'inline-flex',
+				}}
+			>
+				{sorted === 'asc' ? (
+					<ChevronUpIcon className='h-3.5 w-3.5' />
+				) : sorted === 'desc' ? (
+					<ChevronDownIcon className='h-3.5 w-3.5' />
+				) : (
+					<ChevronsUpDownIcon className='h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity' />
+				)}
+			</span>
+		</button>
+	);
+}
+
 // ─── Column definitions ──────────────────────────────────────────────────────
 
-const columns: ColumnDef<RelatedProduct>[] = [
+const columns: ColumnDef<SearchContentTourGroup>[] = [
 	{
 		id: 'select',
 		header: ({ table }) => {
@@ -104,15 +159,48 @@ const columns: ColumnDef<RelatedProduct>[] = [
 		},
 	},
 	{
+		id: 'thumbnail',
+		header: '',
+		cell: ({ row }) => {
+			const imageUrl = row.original.medias?.[0]?.url;
+			if (!imageUrl) return null;
+			return (
+				<div
+					style={{
+						width: 52,
+						height: 40,
+						borderRadius: 6,
+						overflow: 'hidden',
+						flexShrink: 0,
+						background:
+							'var(--color-semantic-surface-light-grey-3)',
+					}}
+				>
+					{/* eslint-disable-next-line @next/next/no-img-element */}
+					<img
+						src={imageUrl}
+						alt=''
+						style={{
+							width: '100%',
+							height: '100%',
+							objectFit: 'cover',
+						}}
+					/>
+				</div>
+			);
+		},
+	},
+	{
 		id: 'product',
 		accessorKey: 'displayName',
 		header: 'Product',
 		cell: ({ row }) => (
 			<div>
 				<div
-					className='font-medium line-clamp-2 max-w-[380px]'
+					className='font-medium line-clamp-2'
 					style={{
 						fontSize: '14px',
+						maxWidth: 320,
 						color: 'var(--color-semantic-surface-dark-black)',
 						lineHeight: 1.35,
 					}}
@@ -141,16 +229,17 @@ const columns: ColumnDef<RelatedProduct>[] = [
 	},
 	{
 		id: 'city',
-		accessorFn: row => row.primaryCity.displayName,
+		accessorFn: row => row.primaryCity?.displayName ?? '',
 		header: 'City',
 		cell: ({ row }) => (
 			<span
 				style={{
 					fontSize: '14px',
 					color: 'var(--color-semantic-text-grey-3)',
+					whiteSpace: 'nowrap',
 				}}
 			>
-				{row.original.primaryCity.displayName}
+				{row.original.primaryCity?.displayName ?? '—'}
 			</span>
 		),
 	},
@@ -158,71 +247,136 @@ const columns: ColumnDef<RelatedProduct>[] = [
 		id: 'category',
 		header: 'Category',
 		cell: ({ row }) => (
-			<div>
+			<div style={{ minWidth: 120 }}>
 				<div
 					style={{
 						fontSize: '14px',
 						color: 'var(--color-semantic-text-grey-3)',
 					}}
 				>
-					{row.original.primaryCategory.displayName}
+					{row.original.primaryCategory?.displayName ?? '—'}
 				</div>
-				<span
-					className='mt-0.5'
-					style={{
-						fontSize: '11px',
-						color: 'var(--color-semantic-text-disabled)',
-						display: 'block',
-					}}
-				>
-					{row.original.primarySubCategory.displayName}
-				</span>
+				{row.original.primarySubCategory?.displayName && (
+					<span
+						className='mt-0.5'
+						style={{
+							fontSize: '11px',
+							color: 'var(--color-semantic-text-disabled)',
+							display: 'block',
+						}}
+					>
+						{row.original.primarySubCategory.displayName}
+					</span>
+				)}
 			</div>
 		),
 	},
 	{
+		id: 'duration',
+		header: 'Duration',
+		cell: ({ row }) => {
+			const dur = getDuration(row.original);
+			return (
+				<span
+					style={{
+						fontSize: '13px',
+						color: 'var(--color-semantic-text-grey-3)',
+						whiteSpace: 'nowrap',
+					}}
+				>
+					{dur ?? '—'}
+				</span>
+			);
+		},
+	},
+	{
 		id: 'price',
 		accessorFn: row => row.listingPrice.finalPrice,
-		header: 'Price',
+		header: ({ column }) => (
+			<SortableHeader
+				label='Price'
+				sorted={column.getIsSorted()}
+				onSort={() =>
+					column.toggleSorting(column.getIsSorted() === 'asc')
+				}
+			/>
+		),
 		cell: ({ row }) => {
-			const { finalPrice, currencyCode, bestDiscount } =
-				row.original.listingPrice;
+			const { finalPrice, currencyCode } = row.original.listingPrice;
 			return (
-				<div className='flex items-center gap-2'>
+				<span
+					className='tabular-nums font-medium'
+					style={{
+						fontSize: '14px',
+						color: 'var(--color-semantic-surface-dark-black)',
+						whiteSpace: 'nowrap',
+					}}
+				>
+					{formatPrice(finalPrice, currencyCode)}
+				</span>
+			);
+		},
+	},
+	{
+		id: 'discount',
+		accessorFn: row => row.listingPrice.bestDiscount,
+		header: ({ column }) => (
+			<SortableHeader
+				label='Discount'
+				sorted={column.getIsSorted()}
+				onSort={() =>
+					column.toggleSorting(column.getIsSorted() === 'asc')
+				}
+			/>
+		),
+		cell: ({ row }) => {
+			const { bestDiscount } = row.original.listingPrice;
+			if (!bestDiscount)
+				return (
 					<span
-						className='tabular-nums font-medium'
 						style={{
-							fontSize: '14px',
-							color: 'var(--color-semantic-surface-dark-black)',
+							fontSize: '13px',
+							color: 'var(--color-semantic-text-disabled)',
 						}}
 					>
-						{formatPrice(finalPrice, currencyCode)}
+						—
 					</span>
-					{bestDiscount > 0 && (
-						<span
-							style={{
-								fontSize: '11px',
-								fontWeight: 600,
-								color: '#fff',
-								borderRadius: 'var(--radius-full)',
-								padding: '2px 7px',
-								backgroundColor:
-									'var(--color-semantic-surface-dark-success-1)',
-							}}
-						>
-							-{bestDiscount}%
-						</span>
-					)}
-				</div>
+				);
+			return (
+				<span
+					style={{
+						fontSize: '11px',
+						fontWeight: 600,
+						color: '#fff',
+						borderRadius: 'var(--radius-full)',
+						padding: '2px 7px',
+						backgroundColor:
+							'var(--color-semantic-surface-dark-success-1)',
+						whiteSpace: 'nowrap',
+					}}
+				>
+					-{bestDiscount}%
+				</span>
 			);
 		},
 	},
 	{
 		id: 'rating',
 		accessorFn: row => row.ratings.value,
-		header: 'Rating',
+		header: ({ column }) => (
+			<SortableHeader
+				label='Rating'
+				sorted={column.getIsSorted()}
+				onSort={() =>
+					column.toggleSorting(column.getIsSorted() === 'asc')
+				}
+			/>
+		),
 		cell: ({ row }) => (
-			<div className='flex items-center gap-1'>
+			<div
+				className='flex items-center gap-1'
+				style={{ whiteSpace: 'nowrap' }}
+			>
 				<span style={{ color: '#F59E0B', fontSize: '13px' }}>★</span>
 				<span
 					className='tabular-nums font-medium'
@@ -233,15 +387,32 @@ const columns: ColumnDef<RelatedProduct>[] = [
 				>
 					{row.original.ratings.value.toFixed(1)}
 				</span>
-				<span
-					style={{
-						fontSize: '12px',
-						color: 'var(--color-semantic-icon-grey-disabled-2)',
-					}}
-				>
-					({formatCount(row.original.ratings.count)})
-				</span>
 			</div>
+		),
+	},
+	{
+		id: 'reviewCount',
+		accessorFn: row => row.ratings.count,
+		header: ({ column }) => (
+			<SortableHeader
+				label='Reviews'
+				sorted={column.getIsSorted()}
+				onSort={() =>
+					column.toggleSorting(column.getIsSorted() === 'asc')
+				}
+			/>
+		),
+		cell: ({ row }) => (
+			<span
+				className='tabular-nums'
+				style={{
+					fontSize: '13px',
+					color: 'var(--color-semantic-text-grey-3)',
+					whiteSpace: 'nowrap',
+				}}
+			>
+				{formatCount(row.original.ratings.count)}
+			</span>
 		),
 	},
 	{
@@ -287,7 +458,7 @@ const columns: ColumnDef<RelatedProduct>[] = [
 // ─── Component ───────────────────────────────────────────────────────────────
 
 interface ProductTableProps {
-	products: RelatedProduct[];
+	products: SearchContentTourGroup[];
 	onDecisionsChange?: (acceptedIds: number[], declinedIds: number[]) => void;
 }
 
@@ -299,6 +470,7 @@ export function ProductTable({
 		new Map(),
 	);
 	const [selected, setSelected] = useState<Set<number>>(new Set());
+	const [sorting, setSorting] = useState<SortingState>([]);
 
 	const decide = useCallback((id: number, decision: ProductDecision) => {
 		setDecisions(prev => {
@@ -356,13 +528,16 @@ export function ProductTable({
 	const table = useReactTable({
 		data: products,
 		columns,
+		state: { sorting },
+		onSortingChange: setSorting,
 		getCoreRowModel: getCoreRowModel(),
+		getSortedRowModel: getSortedRowModel(),
 		getPaginationRowModel: getPaginationRowModel(),
 		initialState: { pagination: { pageSize: PAGE_SIZE, pageIndex: 0 } },
 		meta: { decisions, decide, selected, toggleSelect },
 	});
 
-	const { pageIndex, pageSize } = table.getState().pagination;
+	const { pageIndex } = table.getState().pagination;
 	const totalPages = table.getPageCount();
 	const acceptedCount = [...decisions.values()].filter(
 		d => d === 'accepted',
@@ -471,7 +646,7 @@ export function ProductTable({
 				)}
 			</div>
 
-			{/* Table — borderless with row dividers only */}
+			{/* Table — horizontally scrollable with sticky actions column */}
 			<div
 				ref={scrollRef}
 				className='overflow-x-auto rounded-lg'
@@ -554,6 +729,19 @@ export function ProductTable({
 												overflowing
 													? 'sticky right-0 bg-background shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.08)]'
 													: ''
+											}
+											style={
+												cell.column.id === 'actions' &&
+												overflowing
+													? {
+															background:
+																isAccepted
+																	? 'rgba(7,136,66,0.025)'
+																	: isSelected
+																		? 'rgba(0,0,0,0.02)'
+																		: 'var(--background)',
+														}
+													: undefined
 											}
 										>
 											{flexRender(
