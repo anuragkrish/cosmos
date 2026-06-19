@@ -48,3 +48,8 @@ styled-system
 
 # backups
 backup_*
+
+.yalc
+.agents
+.claude
+yalc.lock
