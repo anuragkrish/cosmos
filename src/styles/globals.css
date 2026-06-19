@@ -1,108 +1,293 @@
+/* ── Layer ordering: Panda layers declared first so Tailwind's layers merge in ── */
 @layer reset, base, tokens, recipes, utilities;
 
-@font-face {
-	font-family: halyard-display;
-	src:
-		url('https://use.typekit.net/af/165087/00000000000000007735adc0/30/l?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=n5&v=3')
-			format('woff2'),
-		url('https://use.typekit.net/af/165087/00000000000000007735adc0/30/d?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=n5&v=3')
-			format('woff'),
-		url('https://use.typekit.net/af/165087/00000000000000007735adc0/30/a?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=n5&v=3')
-			format('opentype');
-	font-display: swap;
-	font-style: normal;
-	font-weight: 500;
-	font-stretch: normal;
-}
+/* ── Tailwind CSS v4 ─────────────────────────────────────────────────────────── */
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
+/* ── Halyard Display — local OTF (public/fonts/HalyardDisplay/) ──────────────── */
 @font-face {
-	font-family: halyard-text;
-	src:
-		url('https://use.typekit.net/af/e40556/00000000000000007735adbc/30/l?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=n3&v=3')
-			format('woff2'),
-		url('https://use.typekit.net/af/e40556/00000000000000007735adbc/30/d?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=n3&v=3')
-			format('woff'),
-		url('https://use.typekit.net/af/e40556/00000000000000007735adbc/30/a?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=n3&v=3')
-			format('opentype');
-	font-display: swap;
-	font-style: normal;
+	font-family: 'halyard-display';
+	src: url('/fonts/HalyardDisplay/HalyardDisplay-Light.otf')
+		format('opentype');
 	font-weight: 300;
-	font-stretch: normal;
-}
-
-@font-face {
-	font-family: halyard-text;
-	src:
-		url('https://use.typekit.net/af/06aac1/00000000000000007735adbe/30/l?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=i3&v=3')
-			format('woff2'),
-		url('https://use.typekit.net/af/06aac1/00000000000000007735adbe/30/d?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=i3&v=3')
-			format('woff'),
-		url('https://use.typekit.net/af/06aac1/00000000000000007735adbe/30/a?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=i3&v=3')
-			format('opentype');
-	font-display: swap;
-	font-style: italic;
-	font-weight: 300;
-	font-stretch: normal;
-}
-
-@font-face {
-	font-family: halyard-text;
-	src:
-		url('https://use.typekit.net/af/a7393c/00000000000000007735adc2/30/l?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=n4&v=3')
-			format('woff2'),
-		url('https://use.typekit.net/af/a7393c/00000000000000007735adc2/30/d?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=n4&v=3')
-			format('woff'),
-		url('https://use.typekit.net/af/a7393c/00000000000000007735adc2/30/a?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=n4&v=3')
-			format('opentype');
-	font-display: swap;
 	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'halyard-display';
+	src: url('/fonts/HalyardDisplay/HalyardDisplay-Regular.otf')
+		format('opentype');
 	font-weight: 400;
-	font-stretch: normal;
-}
-
-@font-face {
-	font-family: halyard-text;
-	src:
-		url('https://use.typekit.net/af/7c9acc/00000000000000007735adc8/30/l?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=n5&v=3')
-			format('woff2'),
-		url('https://use.typekit.net/af/7c9acc/00000000000000007735adc8/30/d?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=n5&v=3')
-			format('woff'),
-		url('https://use.typekit.net/af/7c9acc/00000000000000007735adc8/30/a?primer=f592e0a4b9356877842506ce344308576437e4f677d7c9b78ca2162e6cad991a&fvd=n5&v=3')
-			format('opentype');
-	font-display: swap;
 	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'halyard-display';
+	src:
+		url('/fonts/halyard-display-medium.woff2') format('woff2'),
+		url('/fonts/HalyardDisplay/HalyardDisplay-Medium.otf')
+			format('opentype');
 	font-weight: 500;
-	font-stretch: normal;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'halyard-display';
+	src: url('/fonts/HalyardDisplay/HalyardDisplay-SemiBold.otf')
+		format('opentype');
+	font-weight: 600;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'halyard-display';
+	src: url('/fonts/HalyardDisplay/HalyardDisplay-Bold.otf') format('opentype');
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
 }
 
+/* ── Halyard Text — local OTF (public/fonts/HalyardText/) ───────────────────── */
 @font-face {
 	font-family: 'halyard-text';
-	src:
-		url('https://use.typekit.net/af/2ed20c/00000000000000007735add1/30/l?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n6&v=3')
-			format('woff2'),
-		url('https://use.typekit.net/af/2ed20c/00000000000000007735add1/30/d?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n6&v=3')
-			format('woff'),
-		url('https://use.typekit.net/af/2ed20c/00000000000000007735add1/30/a?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n6&v=3')
-			format('opentype');
-	font-display: auto;
+	src: url('/fonts/HalyardText/HalyardText-Light.otf') format('opentype');
+	font-weight: 300;
 	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'halyard-text';
+	src: url('/fonts/HalyardText/HalyardText-Regular.otf') format('opentype');
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'halyard-text';
+	src: url('/fonts/HalyardText/HalyardText-Medium.otf') format('opentype');
+	font-weight: 500;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'halyard-text';
+	src: url('/fonts/HalyardText/HalyardText-SemiBold.otf') format('opentype');
 	font-weight: 600;
-	font-stretch: normal;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'halyard-text';
+	src: url('/fonts/HalyardText/HalyardText-Bold.otf') format('opentype');
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
 }
 
-@layer reset {
+/* ── Tailwind theme overrides — font stacks ──────────────────────────────────── */
+@theme inline {
+	--font-sans:
+		var(--font-dm-sans, 'DM Sans'), -apple-system, BlinkMacSystemFont,
+		'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+	--font-hd:
+		halyard-display, var(--font-dm-sans, 'DM Sans'), -apple-system,
+		BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+	--font-ht:
+		halyard-text, var(--font-dm-sans, 'DM Sans'), -apple-system,
+		BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+	--font-serif: var(--font-newsreader, 'Newsreader'), Georgia, serif;
+	--font-mono:
+		ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas,
+		'DejaVu Sans Mono', monospace;
+
+	/* Opacity-based white aliases used in ambient orbs */
+	--color-white-a16: rgba(255, 255, 255, 0.16);
+	--color-white-a20: rgba(255, 255, 255, 0.2);
+	--color-white-a85: rgba(255, 255, 255, 0.85);
+
+	/* Radius tokens — mapped to eevee radii */
+	--radius-8: var(--radii-radius-8, 8px);
+	--radius-12: var(--radii-radius-12, 12px);
+	--radius-16: var(--radii-radius-16, 16px);
+	--radius-full: 9999px;
+
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+}
+
+/* ── Figma semantic tokens — backed by eevee core tokens ────────────────────────
+   All hex values replaced with var(--colors-core-*) from the eevee Panda preset.
+   Exact matches confirmed against styled-system/styles.css generated output.
+──────────────────────────────────────────────────────────────────────────────── */
+:root {
+	/* Surface */
+	--color-semantic-surface-dark-black: var(--colors-core-grey-900); /* #222 */
+	--color-semantic-surface-dark-success-1: var(
+		--colors-core-okaygreen-700
+	); /* #078842 */
+	--color-semantic-surface-light-white: var(
+		--colors-core-primary-white
+	); /* #fff */
+	--color-semantic-surface-light-grey-1: var(
+		--colors-core-grey-50
+	); /* #fafafa */
+	--color-semantic-surface-light-grey-2: var(
+		--colors-core-grey-100
+	); /* #f8f8f8 */
+	--color-semantic-surface-light-grey-3: var(
+		--colors-core-grey-200
+	); /* #f0f0f0 */
+
+	/* Dividers */
+	--color-semantic-dividers-dark: var(--colors-core-grey-300); /* #e2e2e2 */
+
+	/* Text */
+	--color-semantic-text-grey-1: var(--colors-core-grey-900); /* #222 */
+	--color-semantic-text-grey-2: var(--colors-core-grey-800); /* #444 */
+	--color-semantic-text-grey-3: var(--colors-core-grey-700); /* #666 */
+	--color-semantic-text-disabled: var(--colors-core-grey-600); /* #888 */
+
+	/* Icons */
+	--color-semantic-icon-grey-disabled-2: var(
+		--colors-core-grey-400
+	); /* #c4c4c4 */
+
+	/* Shadcn / Tailwind compat aliases */
+	--background: var(--color-semantic-surface-light-white);
+	--foreground: var(--color-semantic-text-grey-1);
+	--border: var(--color-semantic-dividers-dark);
+	--muted: var(--color-semantic-text-disabled);
+	--radius: 12px;
+}
+
+@layer base {
 	* {
-		box-sizing: border-box; /* include padding & border in size calculations */
-		padding: 0;
+		box-sizing: border-box;
 		margin: 0;
+		padding: 0;
 	}
 
 	body {
-		font-family: var(--font-halyard-text);
-		min-height: 100dvh; /* ensure that the body fills the entire viewport */
+		background: var(--background);
+		color: var(--foreground);
+		font-family: var(--font-sans), sans-serif;
+		-webkit-font-smoothing: antialiased;
+		min-height: 100dvh;
 	}
 
 	.scroll-lock {
 		overflow: hidden;
 	}
+}
+
+/* ── Animations ──────────────────────────────────────────────────────────────── */
+
+/* Ambient orbs on the Chat screen */
+@keyframes orbDrift {
+	0% {
+		transform: translate(0, 0) scale(1);
+	}
+	50% {
+		transform: translate(18px, -22px) scale(1.06);
+	}
+	100% {
+		transform: translate(0, 0) scale(1);
+	}
+}
+
+/* "thinking…" text breathing */
+@keyframes breathe {
+	0%,
+	100% {
+		opacity: 0.45;
+	}
+	50% {
+		opacity: 1;
+	}
+}
+
+/* Screen / section fade-in */
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* ── Chat composer helpers ───────────────────────────────────────────────────── */
+.chat-input::placeholder {
+	color: var(--color-semantic-icon-grey-disabled-2);
+}
+
+/* ── Thinking text ───────────────────────────────────────────────────────────── */
+.thinking-text {
+	font-family: var(--font-serif), Georgia, serif;
+	font-style: italic;
+	font-size: 16px;
+	color: var(--muted);
+	letter-spacing: 0.01em;
+	animation: breathe 2s ease-in-out infinite;
+}
+
+/* ── Custom scrollbar ────────────────────────────────────────────────────────── */
+.hd-scroll::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+.hd-scroll::-webkit-scrollbar-thumb {
+	background: var(--color-semantic-surface-light-grey-3);
+	border-radius: var(--radius-full);
+}
+
+/* ── Range inputs ────────────────────────────────────────────────────────────── */
+input[type='range'] {
+	-webkit-appearance: none;
+	appearance: none;
+	height: 4px;
+	border-radius: var(--radius-full);
+	background: var(--color-semantic-surface-light-grey-3);
+	outline: none;
+}
+input[type='range']::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	width: 18px;
+	height: 18px;
+	border-radius: var(--radius-full);
+	background: var(--color-semantic-surface-dark-black);
+	cursor: pointer;
+}
+input[type='range']::-moz-range-thumb {
+	width: 18px;
+	height: 18px;
+	border: none;
+	border-radius: var(--radius-full);
+	background: var(--color-semantic-surface-dark-black);
+	cursor: pointer;
+}
+
+/* ── Color swatch inputs ─────────────────────────────────────────────────────── */
+input[type='color'] {
+	-webkit-appearance: none;
+	border: none;
+	padding: 0;
+	background: none;
+	cursor: pointer;
+	width: 30px;
+	height: 30px;
+}
+input[type='color']::-webkit-color-swatch-wrapper {
+	padding: 0;
+}
+input[type='color']::-webkit-color-swatch {
+	border: 1px solid var(--color-semantic-dividers-dark);
+	border-radius: var(--radius-8);
+}
+input[type='color']::-moz-color-swatch {
+	border: 1px solid var(--color-semantic-dividers-dark);
+	border-radius: var(--radius-8);
 }
