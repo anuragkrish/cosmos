@@ -133,6 +133,12 @@
 	}
 }
 
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
 /* ── Chat composer helpers ───────────────────────────────────────────────────── */
 .chat-input::placeholder {
 	color: var(--color-semantic-icon-grey-disabled-2);

@@ -2,13 +2,18 @@ import { useState, useCallback, useRef, KeyboardEvent } from 'react';
 import { ProductTable } from '@/components/product-table';
 import { CampaignEntryCards } from '@/components/campaign-entry-cards';
 import { AppHeader } from '@/components/app-header';
-import { MOCK_PRODUCTS } from '@/lib/mock-data';
-import type { RelatedProduct } from '@/lib/types';
-
-const PRODUCTS = MOCK_PRODUCTS as unknown as RelatedProduct[];
+import {
+	fetchCampaignContent,
+	createCollectionContent,
+	getCollectionContent,
+	getCampaignData,
+	buildCollectionPayload,
+	type SearchContentApiResponse,
+} from '@/lib/campaign-api';
+import { useBoundStore } from '@/stores/store';
 
 const SUGGESTIONS = [
-	'Vatican Museums, Rome',
+	'July 4th campaign for New York',
 	'Disneyland Paris tickets',
 	'Burj Khalifa At The Top',
 	'Summer in Barcelona',
@@ -16,60 +21,154 @@ const SUGGESTIONS = [
 
 type Screen = 'chat' | 'results';
 
+// ─── Thinking animation dots ──────────────────────────────────────────────────
+function ThinkingDots() {
+	return (
+		<span
+			className='inline-flex items-end gap-[3px]'
+			style={{ height: 16 }}
+			aria-hidden
+		>
+			{[0, 1, 2].map(i => (
+				<span
+					key={i}
+					style={{
+						width: 5,
+						height: 5,
+						borderRadius: '50%',
+						background: 'var(--color-semantic-text-grey-3)',
+						display: 'inline-block',
+						animation: `thinkingBounce 1.2s ease-in-out ${i * 0.2}s infinite`,
+					}}
+				/>
+			))}
+		</span>
+	);
+}
+
 export default function Home() {
 	const [screen, setScreen] = useState<Screen>('chat');
 	const [input, setInput] = useState('');
 	const [query, setQuery] = useState('');
+
+	// API state
+	const [isLoading, setIsLoading] = useState(false);
+	const [apiError, setApiError] = useState<string | null>(null);
+	const [apiResponse, setApiResponse] =
+		useState<SearchContentApiResponse | null>(null);
+
+	// Selection & submission state
 	const [acceptedIds, setAcceptedIds] = useState<number[]>([]);
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [submitStep, setSubmitStep] = useState<'create' | 'fetch'>('create');
+	const [submitError, setSubmitError] = useState<string | null>(null);
 	const [assetsRevealed, setAssetsRevealed] = useState(false);
+
+	const setCampaignContext = useBoundStore(s => s.setCampaignContext);
+	const clearCampaign = useBoundStore(s => s.clearCampaign);
+
 	const assetsRef = useRef<HTMLDivElement>(null);
 
-	const submit = () => {
-		const trimmed = input.trim();
+	const submit = async (overrideInput?: string) => {
+		const trimmed = (overrideInput ?? input).trim();
 		if (!trimmed) return;
 		setQuery(trimmed);
 		setScreen('results');
 		setAssetsRevealed(false);
+		setAcceptedIds([]);
+		setApiResponse(null);
+		setApiError(null);
+		setIsLoading(true);
+		try {
+			const data = await fetchCampaignContent(trimmed);
+			setApiResponse(data);
+		} catch (err) {
+			setApiError(
+				err instanceof Error ? err.message : 'Something went wrong.',
+			);
+		} finally {
+			setIsLoading(false);
+		}
 	};
 
 	const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
-			submit();
+			void submit();
 		}
 	};
 
-	const handleDecisions = useCallback(
-		(accepted: number[], _declined: number[]) => {
-			setAcceptedIds(accepted);
-		},
-		[],
-	);
+	const handleDecisions = useCallback((accepted: number[]) => {
+		setAcceptedIds(accepted);
+		setSubmitError(null);
+	}, []);
 
 	const goChat = () => {
 		setScreen('chat');
 		setAssetsRevealed(false);
+		setApiResponse(null);
+		setApiError(null);
+		clearCampaign();
 	};
 
-	const confirmProducts = () => {
-		setAssetsRevealed(true);
-		setTimeout(
-			() =>
-				assetsRef.current?.scrollIntoView({
-					behavior: 'smooth',
-					block: 'start',
-				}),
-			80,
-		);
+	const confirmProducts = async () => {
+		if (!apiResponse || acceptedIds.length === 0) return;
+		setIsSubmitting(true);
+		setSubmitStep('create');
+		setSubmitError(null);
+		try {
+			// Step 1: create the collection
+			const payload = buildCollectionPayload(apiResponse, acceptedIds);
+			const createRes = await createCollectionContent(payload);
+
+			// Step 2: fetch the collection using the returned ID
+			const collectionId = createRes.collectionId;
+			if (collectionId == null)
+				throw new Error('No collection ID returned from create API.');
+
+			setSubmitStep('fetch');
+			// Fetch both in parallel
+			const [collectionData, campaignData] = await Promise.all([
+				getCollectionContent(collectionId),
+				getCampaignData(collectionId),
+			]);
+
+			// Persist to store so preview + studio pages can seed their props
+			setCampaignContext(
+				apiResponse,
+				acceptedIds,
+				collectionData,
+				campaignData,
+			);
+
+			setAssetsRevealed(true);
+			setTimeout(
+				() =>
+					assetsRef.current?.scrollIntoView({
+						behavior: 'smooth',
+						block: 'start',
+					}),
+				80,
+			);
+		} catch (err) {
+			setSubmitError(
+				err instanceof Error
+					? err.message
+					: 'Failed to create collection.',
+			);
+		} finally {
+			setIsSubmitting(false);
+		}
 	};
 
+	// ─── Chat screen ──────────────────────────────────────────────────────────
 	if (screen === 'chat') {
 		return (
 			<div
 				className='flex min-h-screen flex-col relative overflow-hidden'
 				style={{ background: 'var(--background)' }}
 			>
-				{/* Ambient orbs — eevee purps palette */}
+				{/* Ambient orbs */}
 				<div
 					aria-hidden
 					className='pointer-events-none absolute'
@@ -148,7 +247,7 @@ export default function Home() {
 					>
 						<textarea
 							className='chat-input flex-1 resize-none border-none bg-transparent py-[14px] text-[15px] font-light leading-[1.6] text-[var(--color-semantic-text-grey-2)] outline-none'
-							placeholder='Ask anything…  e.g. Skip-the-line Vatican tickets for summer travelers'
+							placeholder='Ask anything…  e.g. July 4th campaign for New York'
 							value={input}
 							onChange={e => setInput(e.target.value)}
 							onKeyDown={handleKeyDown}
@@ -157,7 +256,7 @@ export default function Home() {
 						/>
 						<button
 							className='flex h-[42px] w-[42px] flex-none items-center justify-center rounded-[var(--radius-12)] border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-dark-black)] text-[var(--color-semantic-surface-light-white)] cursor-pointer transition-opacity hover:opacity-80'
-							onClick={submit}
+							onClick={() => submit()}
 							aria-label='Send'
 						>
 							<svg
@@ -182,8 +281,7 @@ export default function Home() {
 								key={s}
 								onClick={() => {
 									setInput(s);
-									setQuery(s);
-									setScreen('results');
+									submit(s);
 								}}
 								className='rounded-[var(--radius-full)] border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-light-grey-1)] px-4 py-[9px] text-[14px] font-medium text-[var(--color-semantic-text-grey-1)] cursor-pointer hover:bg-[var(--color-semantic-surface-light-grey-2)] transition-colors'
 							>
@@ -196,11 +294,22 @@ export default function Home() {
 		);
 	}
 
+	// ─── Results screen ───────────────────────────────────────────────────────
+	const products = apiResponse?.tourGroups ?? [];
+	const bannerTitle = apiResponse?.banner?.title;
+
 	return (
 		<div
 			className='flex min-h-screen flex-col'
 			style={{ background: 'var(--background)' }}
 		>
+			<style>{`
+        @keyframes thinkingBounce {
+          0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+          40% { transform: translateY(-5px); opacity: 1; }
+        }
+      `}</style>
+
 			<AppHeader
 				sticky
 				label='COSMOS'
@@ -218,6 +327,7 @@ export default function Home() {
 				className='mx-auto w-full max-w-[1200px] px-8 pb-[140px] pt-[36px]'
 				style={{ animation: 'fadeIn 0.35s ease both' }}
 			>
+				{/* Query display */}
 				<div className='mb-[14px] flex justify-center'>
 					<div className='flex w-full max-w-[720px] items-center gap-3 rounded-[var(--radius-12)] bg-[var(--color-semantic-surface-light-grey-2)] px-[22px] py-2 pr-2'>
 						<span className='flex-1 py-3 text-[15px] font-light text-[var(--color-semantic-text-grey-2)]'>
@@ -244,80 +354,180 @@ export default function Home() {
 					</div>
 				</div>
 
-				<p
-					className='mb-[48px] text-center text-[14px] font-light italic text-[var(--color-semantic-text-disabled)]'
-					style={{ fontFamily: 'var(--font-serif)' }}
-				>
-					Campaign assembled — {PRODUCTS.length} related products
-					matched to your brief.
-				</p>
-
-				<div className='mb-1 flex items-end justify-between'>
-					<h2
-						className='text-[21px] font-semibold text-[var(--color-semantic-text-grey-1)]'
-						style={{ fontFamily: 'var(--font-hd)' }}
+				{/* Loading / thinking state */}
+				{isLoading && (
+					<div
+						className='flex flex-col items-center justify-center py-[80px] gap-4'
+						style={{ animation: 'fadeIn 0.3s ease both' }}
 					>
-						Related products
-					</h2>
-				</div>
-				<p className='mb-[16px] text-[14px] font-light text-[var(--color-semantic-text-grey-3)]'>
-					Review and accept or decline each suggestion.
-				</p>
-
-				<ProductTable
-					products={PRODUCTS}
-					onDecisionsChange={handleDecisions}
-				/>
-
-				{/* Confirm products CTA — shown until confirmed */}
-				{!assetsRevealed && (
-					<div className='mt-[40px] flex items-center justify-between rounded-[var(--radius-12)] border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-light-grey-1)] px-6 py-4'>
-						<div>
-							<p className='text-[14px] font-medium text-[var(--color-semantic-text-grey-1)]'>
-								{acceptedIds.length > 0
-									? `${acceptedIds.length} product${acceptedIds.length !== 1 ? 's' : ''} selected`
-									: 'No products selected yet'}
-							</p>
-							<p className='mt-0.5 text-[13px] font-light text-[var(--color-semantic-text-grey-3)]'>
-								Accept the products you want to promote, then
-								confirm to generate campaign assets.
-							</p>
-						</div>
-						<button
-							onClick={confirmProducts}
-							disabled={acceptedIds.length === 0}
-							className='ml-6 flex-none rounded-[var(--radius-full)] border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-dark-black)] px-5 py-2.5 text-[14px] font-medium text-[var(--color-semantic-surface-light-white)] cursor-pointer transition-opacity hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed'
+						<ThinkingDots />
+						<p
+							className='text-[15px] font-light text-[var(--color-semantic-text-grey-3)]'
+							style={{ fontFamily: 'var(--font-serif)' }}
 						>
-							Confirm products →
+							Searching for the best experiences for{' '}
+							<em>"{query}"</em>…
+						</p>
+					</div>
+				)}
+
+				{/* Error state */}
+				{apiError && !isLoading && (
+					<div
+						className='mx-auto max-w-[480px] rounded-[var(--radius-12)] border border-[#FCA5A5] bg-[#FEF2F2] px-6 py-4 text-center'
+						style={{ animation: 'fadeIn 0.3s ease both' }}
+					>
+						<p className='text-[14px] font-medium text-[#DC2626]'>
+							Failed to load results
+						</p>
+						<p className='mt-1 text-[13px] font-light text-[#EF4444]'>
+							{apiError}
+						</p>
+						<button
+							onClick={() => void submit()}
+							className='mt-3 text-[13px] font-medium text-[#DC2626] underline cursor-pointer'
+						>
+							Try again
 						</button>
 					</div>
 				)}
 
-				{/* Campaign assets — revealed after confirmation */}
-				{assetsRevealed && (
-					<div
-						ref={assetsRef}
-						className='mt-[72px]'
-						style={{ animation: 'fadeIn 0.4s ease both' }}
-					>
+				{/* Results */}
+				{!isLoading && !apiError && apiResponse && (
+					<>
+						<p
+							className='mb-[48px] text-center text-[14px] font-light italic text-[var(--color-semantic-text-disabled)]'
+							style={{ fontFamily: 'var(--font-serif)' }}
+						>
+							{bannerTitle
+								? `"${bannerTitle}" — ${products.length} related products matched.`
+								: `Campaign assembled — ${products.length} related products matched.`}
+						</p>
+
 						<div className='mb-1 flex items-end justify-between'>
 							<h2
 								className='text-[21px] font-semibold text-[var(--color-semantic-text-grey-1)]'
 								style={{ fontFamily: 'var(--font-hd)' }}
 							>
-								Campaign assets
+								Related products
 							</h2>
-							<span className='text-[13px] font-light text-[var(--color-semantic-text-grey-3)]'>
-								{acceptedIds.length} product
-								{acceptedIds.length !== 1 ? 's' : ''} included
-							</span>
 						</div>
-						<p className='mb-[28px] text-[14px] font-light text-[var(--color-semantic-text-grey-3)]'>
-							Three creative sets generated from your brief. Open
-							any to edit, or preview the campaign page.
+						<p className='mb-[16px] text-[14px] font-light text-[var(--color-semantic-text-grey-3)]'>
+							Review and accept or decline each suggestion.
 						</p>
-						<CampaignEntryCards prompt={query} />
-					</div>
+
+						<ProductTable
+							products={products}
+							onDecisionsChange={handleDecisions}
+						/>
+
+						{/* Confirm CTA — hidden once assets revealed */}
+						{!assetsRevealed && (
+							<div
+								className='mt-[40px] rounded-[var(--radius-12)] border bg-[var(--color-semantic-surface-light-grey-1)]'
+								style={{
+									borderColor: submitError
+										? '#FCA5A5'
+										: 'var(--color-semantic-dividers-dark)',
+								}}
+							>
+								{/* Error banner */}
+								{submitError && (
+									<div className='flex items-center justify-between gap-4 border-b border-[#FCA5A5] bg-[#FEF2F2] px-6 py-3 rounded-t-[var(--radius-12)]'>
+										<p className='text-[13px] font-medium text-[#DC2626]'>
+											{submitError}
+										</p>
+										<button
+											onClick={() =>
+												void confirmProducts()
+											}
+											className='flex-none text-[13px] font-semibold text-[#DC2626] underline cursor-pointer whitespace-nowrap hover:opacity-80 transition-opacity'
+										>
+											Retry
+										</button>
+									</div>
+								)}
+
+								<div className='flex items-center justify-between px-6 py-4'>
+									<div>
+										<p className='text-[14px] font-medium text-[var(--color-semantic-text-grey-1)]'>
+											{acceptedIds.length > 0
+												? `${acceptedIds.length} product${acceptedIds.length !== 1 ? 's' : ''} selected`
+												: 'No products selected yet'}
+										</p>
+										<p className='mt-0.5 text-[13px] font-light text-[var(--color-semantic-text-grey-3)]'>
+											Accept the products you want to
+											promote, then confirm to generate
+											campaign assets.
+										</p>
+									</div>
+									<button
+										onClick={() => void confirmProducts()}
+										disabled={
+											acceptedIds.length === 0 ||
+											isSubmitting
+										}
+										className='ml-6 flex-none rounded-[var(--radius-full)] border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-dark-black)] px-5 py-2.5 text-[14px] font-medium text-[var(--color-semantic-surface-light-white)] cursor-pointer transition-opacity hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center gap-2'
+									>
+										{isSubmitting ? (
+											<>
+												<span
+													style={{
+														width: 14,
+														height: 14,
+														border: '2px solid rgba(255,255,255,0.4)',
+														borderTopColor: '#fff',
+														borderRadius: '50%',
+														display: 'inline-block',
+														animation:
+															'spin 0.7s linear infinite',
+													}}
+												/>
+												{submitStep === 'create'
+													? 'Creating campaign…'
+													: 'Loading collection…'}
+											</>
+										) : submitError ? (
+											'Try again →'
+										) : (
+											'Confirm products →'
+										)}
+									</button>
+								</div>
+							</div>
+						)}
+
+						{/* Campaign assets — revealed after confirmation */}
+						{assetsRevealed && (
+							<div
+								ref={assetsRef}
+								className='mt-[72px]'
+								style={{ animation: 'fadeIn 0.4s ease both' }}
+							>
+								<div className='mb-1 flex items-end justify-between'>
+									<h2
+										className='text-[21px] font-semibold text-[var(--color-semantic-text-grey-1)]'
+										style={{ fontFamily: 'var(--font-hd)' }}
+									>
+										Campaign assets
+									</h2>
+									<span className='text-[13px] font-light text-[var(--color-semantic-text-grey-3)]'>
+										{acceptedIds.length} product
+										{acceptedIds.length !== 1
+											? 's'
+											: ''}{' '}
+										included
+									</span>
+								</div>
+								<p className='mb-[28px] text-[14px] font-light text-[var(--color-semantic-text-grey-3)]'>
+									Three creative sets generated from your
+									brief. Open any to edit, or preview the
+									campaign page.
+								</p>
+								<CampaignEntryCards prompt={query} />
+							</div>
+						)}
+					</>
 				)}
 			</div>
 		</div>
