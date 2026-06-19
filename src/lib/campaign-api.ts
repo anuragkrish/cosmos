@@ -456,6 +456,37 @@ export function buildPromoProps(
 	};
 }
 
+export interface CampaignStoryStudioProps {
+	imageSrc: string;
+	title: string;
+	description: string;
+	outerBgColor: string;
+	cardBgColor: string;
+	textColor: string;
+}
+
+export function buildCampaignStoryProps(
+	data: SearchContentApiResponse,
+	acceptedTgIds: number[],
+): CampaignStoryStudioProps {
+	const accepted = data.tourGroups.filter(tg =>
+		acceptedTgIds.includes(tg.id),
+	);
+	const first = accepted[0] ?? data.tourGroups[0];
+
+	return {
+		imageSrc: first?.medias?.[0]?.url ?? data.banner?.images?.[0] ?? '',
+		title:
+			resolveLocalized(data.banner?.title, 'en') ||
+			first?.displayName ||
+			'',
+		description: resolveLocalized(data.banner?.description, 'en') || '',
+		outerBgColor: '#d8f1ff',
+		cardBgColor: '#b7e4ff',
+		textColor: '#02376d',
+	};
+}
+
 export interface DestSlideData {
 	type: 'cover' | 'city';
 	[key: string]: unknown;
