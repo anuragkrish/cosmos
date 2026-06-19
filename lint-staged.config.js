@@ -3,7 +3,7 @@
  * @type {import('lint-staged').Configuration}
  */
 const config = {
-	'*.{js,ts,jsx,tsx}': ['eslint --fix', 'prettier --write'],
+	'*.{js,ts,jsx,tsx}': ['prettier --write'],
 	'*.css': ['prettier --write'],
 };
 
