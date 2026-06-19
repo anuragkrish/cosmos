@@ -10,12 +10,29 @@ import { StudioHeader } from './studio-header';
 import { useBoundStore } from '@/stores/store';
 import { buildCampaignStoryProps } from '@/lib/campaign-api';
 import { extractPalette } from '@/lib/extract-palette';
+import type { AiStudioPrefillResponse } from '@/pages/api/ai-studio-prefill';
+import { ShimmerFields } from './ShimmerFields';
 
 const STORIES_TEMPLATES = TEMPLATES.filter(t => t.category === 'stories');
 const PREVIEW_BOX = { width: 360, height: 640 };
 
+function buildCampaignSummary(
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	searchData: any,
+	query: string,
+): string {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const products = (searchData?.tourGroups ?? []).slice(0, 5) as any[];
+	const location = (searchData?.location?.cityName as string) ?? '';
+	const productNames = products
+		.map((p: { displayName: string }) => p.displayName)
+		.join(', ');
+	return `Campaign: "${query}". Location: ${location || 'N/A'}. Top products: ${productNames || 'N/A'}.`;
+}
+
 export function StoriesStudio() {
 	const searchData = useBoundStore(s => s.searchData);
+	const query = useBoundStore(s => s.query);
 	const acceptedTgIds = useBoundStore(s => s.acceptedTgIds);
 
 	const initialProps = useMemo(() => {
@@ -31,9 +48,33 @@ export function StoriesStudio() {
 	const [activeId, setActiveId] = useState(STORIES_TEMPLATES[0].id);
 	const [downloading, setDownloading] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [aiLoading, setAiLoading] = useState(!!(searchData && query));
 
 	useEffect(() => {
 		ensureFonts();
+	}, []);
+
+	// AI-enhanced copy — runs once when campaign data is available
+	useEffect(() => {
+		if (!searchData || !query) return;
+		fetch('/api/ai-studio-prefill', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				studioType: 'stories',
+				query,
+				campaignSummary: buildCampaignSummary(searchData, query),
+			}),
+		})
+			.then(r => (r.ok ? r.json() : Promise.reject()))
+			.then((data: AiStudioPrefillResponse) => {
+				if (data.studioType === 'stories') {
+					setProps(prev => ({ ...prev, ...data.fields }));
+				}
+			})
+			.catch(() => {})
+			.finally(() => setAiLoading(false));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	// Auto-derive card palette whenever the image changes.
@@ -123,11 +164,15 @@ export function StoriesStudio() {
 				{/* Editor */}
 				<aside className='w-full shrink-0 lg:w-80'>
 					<div className='rounded-xl border border-[var(--color-semantic-dividers-dark)] bg-[var(--color-semantic-surface-light-white)] p-5'>
-						<ControlPanel
-							fields={active.fields}
-							values={props}
-							onChange={setField}
-						/>
+						{aiLoading ? (
+							<ShimmerFields variant='stories' />
+						) : (
+							<ControlPanel
+								fields={active.fields}
+								values={props}
+								onChange={setField}
+							/>
+						)}
 					</div>
 				</aside>
 
