@@ -255,10 +255,6 @@ export default function Home() {
 				<AppHeader label='COSMOS' />
 
 				<div className='relative z-[1] flex flex-1 flex-col items-center justify-center px-6 pb-30 pt-10'>
-					<div className='mb-[18px] text-[12px] font-medium uppercase tracking-[0.4px] text-[var(--color-semantic-text-grey-2)]'>
-						Campaign brief
-					</div>
-
 					<h1
 						className='mb-[14px] max-w-[720px] text-center text-[48px] font-medium leading-[1.1] tracking-[0.4px] text-[var(--color-semantic-text-grey-1)]'
 						style={{ fontFamily: 'var(--font-hd)' }}
