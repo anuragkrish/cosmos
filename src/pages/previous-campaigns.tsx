@@ -13,7 +13,8 @@ const BASE_SITE = 'https://poc-shv.deimos.dev-headout.com';
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function collectionUrl(c: CollectionSummary): string {
-	return `${BASE_SITE}/${c.urlSlug ?? c.name ?? c.id}-c-${c.id}`;
+	const cid = c.collectionId ?? c.id;
+	return `${BASE_SITE}/${c.urlSlug ?? c.name ?? cid}-c-${cid}`;
 }
 
 // ── Delete button with inline confirm ─────────────────────────────────────
@@ -151,17 +152,20 @@ export default function PreviousCampaigns() {
 		void load();
 	}, [load]);
 
-	const handleDelete = useCallback(async (id: number | string) => {
-		setDeleting(prev => new Set(prev).add(id));
+	const handleDelete = useCallback(async (c: CollectionSummary) => {
+		const cid = c.collectionId ?? c.id;
+		setDeleting(prev => new Set(prev).add(cid));
 		try {
-			await deleteCollection(id);
-			setCollections(prev => prev.filter(c => c.id !== id));
+			await deleteCollection(cid);
+			setCollections(prev =>
+				prev.filter(x => (x.collectionId ?? x.id) !== cid),
+			);
 		} catch {
 			// keep item, let user retry
 		} finally {
 			setDeleting(prev => {
 				const next = new Set(prev);
-				next.delete(id);
+				next.delete(cid);
 				return next;
 			});
 		}
@@ -269,11 +273,12 @@ export default function PreviousCampaigns() {
 						}}
 					>
 						{collections.map((c, i) => {
+							const cid = c.collectionId ?? c.id;
 							const url = collectionUrl(c);
-							const isDeleting = deleting.has(c.id);
+							const isDeleting = deleting.has(cid);
 							return (
 								<div
-									key={String(c.id)}
+									key={String(cid)}
 									className='flex items-center gap-4 px-5 py-4'
 									style={{
 										borderBottom:
@@ -378,7 +383,7 @@ export default function PreviousCampaigns() {
 													flexShrink: 0,
 												}}
 											>
-												ID {String(c.id)}
+												ID {String(cid)}
 											</span>
 											{c.city && (
 												<span
@@ -462,7 +467,7 @@ export default function PreviousCampaigns() {
 										<DeleteButton
 											loading={isDeleting}
 											onConfirm={() =>
-												void handleDelete(c.id)
+												void handleDelete(c)
 											}
 										/>
 									</div>

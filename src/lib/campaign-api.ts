@@ -172,6 +172,7 @@ export async function getCampaignData(
 
 export interface CollectionSummary {
 	id: number | string;
+	collectionId?: number | string;
 	name?: string;
 	displayName?: string;
 	urlSlug?: string;
