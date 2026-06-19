@@ -17,7 +17,8 @@
 		"prepare:panda": "panda codegen",
 		"postinstall": "pnpm prepare:husky",
 		"sdd:new": "tsx .sdd/commands/new_feature.ts",
-		"sdd:plan": "tsx .sdd/commands/generate_plan.ts"
+		"sdd:plan": "tsx .sdd/commands/generate_plan.ts",
+		"setup:npmrc": "sh scripts/setup-npmrc.sh"
 	},
 	"dependencies": {
 		"@base-ui/react": "^1.6.0",
