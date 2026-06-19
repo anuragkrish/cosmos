@@ -14,6 +14,11 @@ import {
 	destinationsDefaults,
 	DEST_SLIDE_TYPES,
 } from './templates/destinations/schema';
+import {
+	campaignStorySchema,
+	campaignStoryDefaults,
+	campaignStoryFields,
+} from './templates/campaign/schema';
 import type { FieldControl } from './types';
 
 /**
@@ -34,8 +39,8 @@ export interface TemplateMeta {
 	formatLabel: string;
 	width: number;
 	height: number;
-	/** "ads" templates export a single PNG; "posts" templates export a ZIP of slides. */
-	category: 'ads' | 'posts';
+	/** "ads" → single PNG; "stories" → single PNG (9:16); "posts" → ZIP of slides. */
+	category: 'ads' | 'stories' | 'posts';
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	schema: z.ZodType<any>;
 	defaultProps: Record<string, unknown>;
@@ -79,6 +84,19 @@ export const TEMPLATE_META: TemplateMeta[] = [
 		schema: promoSchema,
 		defaultProps: promoDefaults,
 		fields: promoFields,
+	},
+
+	// ── Campaign Stories ────────────────────────────────────────────────────────
+	{
+		id: 'campaign-story',
+		name: 'Campaign Story',
+		formatLabel: 'Campaign Story · 1080×1920',
+		width: 1080,
+		height: 1920,
+		category: 'stories',
+		schema: campaignStorySchema,
+		defaultProps: campaignStoryDefaults,
+		fields: campaignStoryFields,
 	},
 
 	// ── Posts ───────────────────────────────────────────────────────────────────
