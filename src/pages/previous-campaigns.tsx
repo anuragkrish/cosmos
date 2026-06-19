@@ -8,7 +8,7 @@ import {
 	type CollectionSummary,
 } from '@/lib/campaign-api';
 
-const BASE_SITE = 'https://poc-shv.deimos.dev-headout.com';
+const BASE_SITE = 'https://poc-cosmos.deimos.dev-headout.com';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 

@@ -922,7 +922,7 @@ function CampaignPagePreviewModal({ onClose }: CampaignPagePreviewModalProps) {
 								}) => {
 									if (product?.urlSlug) {
 										window.open(
-											`https://poc-shv.deimos.dev-headout.com${product.urlSlug}`,
+											`https://poc-cosmos.deimos.dev-headout.com${product.urlSlug}`,
 											'_blank',
 										);
 									}

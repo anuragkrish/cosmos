@@ -3,7 +3,7 @@ import type {
 	TCampaignDiscountBanner,
 } from '@headout/espeon/components/CampaignCollectionPage';
 
-const BASE_URL = 'https://poc-shv.api.dev-headout.com/api/v6/ai';
+const BASE_URL = 'https://poc-cosmos.api.dev-headout.com/api/v6/ai';
 
 export const SUPPORTED_LANGS = ['en', 'fr', 'it'] as const;
 export type SupportedLang = (typeof SUPPORTED_LANGS)[number];

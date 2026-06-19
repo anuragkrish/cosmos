@@ -162,7 +162,7 @@ export default function Home() {
 				campaignData,
 			);
 
-			const BASE = 'https://poc-shv.deimos.dev-headout.com';
+			const BASE = 'https://poc-cosmos.deimos.dev-headout.com';
 			const urls: { label: string; url: string }[] = [
 				{
 					label: 'Collection page',
