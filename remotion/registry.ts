@@ -5,6 +5,7 @@ import { PromoSquare } from './templates/promo/PromoSquare';
 import { PromoLandscape } from './templates/promo/PromoLandscape';
 import { PostGuide } from './templates/guide/PostGuide';
 import { PostDestinations } from './templates/destinations/PostDestinations';
+import { CampaignStory } from './templates/campaign/CampaignStory';
 
 /**
  * Couples each template's metadata (from the pure manifest) with its React
@@ -23,6 +24,7 @@ const COMPONENTS: Record<string, React.FC<any>> = {
 	'promo-landscape': PromoLandscape,
 	'post-guide': PostGuide,
 	'post-destinations': PostDestinations,
+	'campaign-story': CampaignStory,
 };
 
 export const TEMPLATES: Template[] = TEMPLATE_META.map(meta => ({
