@@ -1,0 +1,19 @@
+<svg preserveAspectRatio="none" width="799" height="904.98" overflow="visible" style="display: block;" viewBox="0 0 799 904.98" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Mask group">
+<mask id="mask0_0_12" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="799" height="905">
+<path id="Vector 7270" d="M799 884.427C799.002 895.028 789.921 903.743 778.391 904.98L21.8201 903.682C9.75739 903.214 6.00215e-05 894.381 5.8967e-05 883.356L0.000233225 152.686C0.000232183 141.784 9.5753 132.926 21.4777 132.091C63.9152 129.113 127.841 118.763 154.635 92.9064C194.496 54.4391 301.154 -3.75478 395.961 0.190584C490.767 4.13595 566.182 36.6849 639.442 92.9063C678.061 121.192 716.681 126.505 777.012 127.304C789.084 127.464 798.89 136.202 798.892 147.227C798.905 222.141 798.965 684.912 799 884.427Z" fill="var(--fill-0, #D9D9D9)"/>
+</mask>
+<g mask="url(#mask0_0_12)">
+<g id="Ellipse 3" filter="url(#filter0_f_0_12)">
+<ellipse cx="416.002" cy="812.986" rx="515" ry="155" fill="var(--fill-0, #280F04)"/>
+</g>
+</g>
+</g>
+<defs>
+<filter id="filter0_f_0_12" x="-351.789" y="405.195" width="1535.58" height="815.582" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="126.396" result="effect1_foregroundBlur_0_12"/>
+</filter>
+</defs>
+</svg>
