@@ -8,6 +8,7 @@ import {
 	getCollectionContent,
 	getCampaignData,
 	buildCollectionPayload,
+	resolveLocalized,
 	type SearchContentApiResponse,
 } from '@/lib/campaign-api';
 import { useBoundStore } from '@/stores/store';
@@ -326,7 +327,9 @@ export default function Home() {
 
 	// ─── Results screen ───────────────────────────────────────────────────────
 	const products = apiResponse?.tourGroups ?? [];
-	const bannerTitle = apiResponse?.banner?.title;
+	const bannerTitle = apiResponse?.banner?.title
+		? resolveLocalized(apiResponse.banner.title, 'en')
+		: null;
 
 	return (
 		<div
@@ -443,11 +446,13 @@ export default function Home() {
 							</h2>
 						</div>
 						<p className='mb-[16px] text-[14px] font-light text-[var(--color-semantic-text-grey-3)]'>
-							Review and accept or decline each suggestion.
+							Tag the products you want to include in this
+							campaign.
 						</p>
 
 						<ProductTable
 							products={products}
+							query={query}
 							onDecisionsChange={handleDecisions}
 						/>
 

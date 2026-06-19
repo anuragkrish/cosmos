@@ -14,7 +14,7 @@ export interface SearchContentBanner {
 	images: string[];
 }
 
-function resolveLocalized(
+export function resolveLocalized(
 	value: string | Record<string, string> | undefined,
 	lang: string,
 ): string {

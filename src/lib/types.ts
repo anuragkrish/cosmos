@@ -49,4 +49,4 @@ export interface RelatedProduct {
 	listingAvailability: ListingAvailability;
 }
 
-export type ProductDecision = 'accepted' | 'declined' | 'pending';
+export type ProductDecision = 'accepted' | 'pending';

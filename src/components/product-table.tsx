@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
 	type ColumnDef,
 	type RowData,
@@ -27,10 +27,13 @@ import {
 	ChevronsUpDownIcon,
 	ChevronUpIcon,
 	ChevronDownIcon,
+	SparklesIcon,
+	MessageCircleIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ProductDecision } from '@/lib/types';
 import type { SearchContentTourGroup } from '@/lib/campaign-api';
+import type { RecommendResponse } from '@/pages/api/recommend';
 
 // ─── TanStack Table meta ─────────────────────────────────────────────────────
 declare module '@tanstack/react-table' {
@@ -40,6 +43,8 @@ declare module '@tanstack/react-table' {
 		decide: (id: number, decision: ProductDecision) => void;
 		selected: Set<number>;
 		toggleSelect: (id: number) => void;
+		aiPicks: number[];
+		aiReasons: Record<number, string>;
 	}
 }
 
@@ -160,31 +165,57 @@ const columns: ColumnDef<SearchContentTourGroup>[] = [
 	{
 		id: 'thumbnail',
 		header: '',
-		cell: ({ row }) => {
+		cell: ({ row, table }) => {
 			const imageUrl = row.original.medias?.[0]?.url;
-			if (!imageUrl) return null;
+			const rank = table.options.meta!.aiPicks.indexOf(row.original.id);
+			const isAiPick = rank !== -1;
 			return (
-				<div
-					style={{
-						width: 52,
-						height: 40,
-						borderRadius: 6,
-						overflow: 'hidden',
-						flexShrink: 0,
-						background:
-							'var(--color-semantic-surface-light-grey-3)',
-					}}
-				>
-					{/* eslint-disable-next-line @next/next/no-img-element */}
-					<img
-						src={imageUrl}
-						alt=''
+				<div style={{ position: 'relative', display: 'inline-flex' }}>
+					<div
 						style={{
-							width: '100%',
-							height: '100%',
-							objectFit: 'cover',
+							width: 52,
+							height: 40,
+							borderRadius: 6,
+							overflow: 'hidden',
+							flexShrink: 0,
+							background:
+								'var(--color-semantic-surface-light-grey-3)',
 						}}
-					/>
+					>
+						{imageUrl && (
+							// eslint-disable-next-line @next/next/no-img-element
+							<img
+								src={imageUrl}
+								alt=''
+								style={{
+									width: '100%',
+									height: '100%',
+									objectFit: 'cover',
+								}}
+							/>
+						)}
+					</div>
+					{isAiPick && (
+						<span
+							style={{
+								position: 'absolute',
+								top: -5,
+								right: -5,
+								fontSize: '9px',
+								fontWeight: 700,
+								lineHeight: 1,
+								padding: '2px 4px',
+								borderRadius: 4,
+								background:
+									'linear-gradient(135deg, #7c3aed, #4f46e5)',
+								color: '#fff',
+								whiteSpace: 'nowrap',
+								boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+							}}
+						>
+							#{rank + 1}
+						</span>
+					)}
 				</div>
 			);
 		},
@@ -193,38 +224,50 @@ const columns: ColumnDef<SearchContentTourGroup>[] = [
 		id: 'product',
 		accessorKey: 'displayName',
 		header: 'Product',
-		cell: ({ row }) => (
-			<div>
-				<div
-					className='font-medium line-clamp-2'
-					style={{
-						fontSize: '14px',
-						maxWidth: 320,
-						color: 'var(--color-semantic-surface-dark-black)',
-						lineHeight: 1.35,
-					}}
-				>
-					{row.original.displayName}
-				</div>
-				{(row.original.combo || row.original.multiVariant) && (
-					<span
-						className='mt-0.5'
+		size: 300,
+		minSize: 200,
+		maxSize: 320,
+		cell: ({ row, table }) => {
+			const reason = table.options.meta!.aiReasons[row.original.id];
+			return (
+				<div style={{ width: 280, minWidth: 0 }}>
+					<div
+						className='font-medium line-clamp-2'
 						style={{
-							fontSize: '11px',
-							color: 'var(--color-semantic-text-disabled)',
-							display: 'block',
+							fontSize: '14px',
+							color: 'var(--color-semantic-surface-dark-black)',
+							lineHeight: 1.35,
 						}}
 					>
-						{[
-							row.original.combo && 'Combo',
-							row.original.multiVariant && 'Multi-variant',
-						]
-							.filter(Boolean)
-							.join('  ·  ')}
-					</span>
-				)}
-			</div>
-		),
+						{row.original.displayName}
+					</div>
+					{reason && (
+						<div
+							className='flex items-start gap-1 mt-1'
+							style={{
+								fontSize: '11px',
+								color: '#6d28d9',
+								lineHeight: 1.4,
+								whiteSpace: 'normal',
+								wordBreak: 'break-word',
+							}}
+						>
+							<MessageCircleIcon
+								style={{
+									width: 11,
+									height: 11,
+									flexShrink: 0,
+									marginTop: 1,
+									fill: '#ede9fe',
+									strokeWidth: 1.75,
+								}}
+							/>
+							<span style={{ minWidth: 0 }}>{reason}</span>
+						</div>
+					)}
+				</div>
+			);
+		},
 	},
 	{
 		id: 'city',
@@ -446,11 +489,13 @@ const columns: ColumnDef<SearchContentTourGroup>[] = [
 
 interface ProductTableProps {
 	products: SearchContentTourGroup[];
+	query?: string;
 	onDecisionsChange?: (acceptedIds: number[]) => void;
 }
 
 export function ProductTable({
 	products,
+	query,
 	onDecisionsChange,
 }: ProductTableProps) {
 	const [decisions, setDecisions] = useState<Map<number, ProductDecision>>(
@@ -458,6 +503,11 @@ export function ProductTable({
 	);
 	const [selected, setSelected] = useState<Set<number>>(new Set());
 	const [sorting, setSorting] = useState<SortingState>([]);
+	const [aiPicks, setAiPicks] = useState<number[]>([]);
+	const [aiReasons, setAiReasons] = useState<Record<number, string>>({});
+	const [aiContext, setAiContext] = useState<string>('');
+	const [aiLoading, setAiLoading] = useState(false);
+	const [aiError, setAiError] = useState<string | null>(null);
 
 	const decide = useCallback((id: number, decision: ProductDecision) => {
 		setDecisions(prev => {
@@ -489,6 +539,42 @@ export function ProductTable({
 		[selected],
 	);
 
+	const aiLoadingRef = useRef(false);
+	const recommendWithAI = useCallback(async () => {
+		if (!query || aiLoadingRef.current) return;
+		aiLoadingRef.current = true;
+		setAiLoading(true);
+		setAiError(null);
+		try {
+			const slim = products.map(p => ({
+				id: p.id,
+				displayName: p.displayName,
+				primaryCity: p.primaryCity,
+				primaryCategory: p.primaryCategory,
+				primarySubCategory: p.primarySubCategory,
+				descriptors: p.descriptors,
+				ratings: p.ratings,
+			}));
+			const res = await fetch('/api/recommend', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ query, products: slim }),
+			});
+			if (!res.ok) throw new Error(`API error ${res.status}`);
+			const data = (await res.json()) as RecommendResponse;
+			setAiPicks(data.recommendedIds);
+			setAiReasons(data.reasons ?? {});
+			setAiContext(data.searchContext);
+		} catch (e) {
+			setAiError(
+				e instanceof Error ? e.message : 'Recommendation failed',
+			);
+		} finally {
+			aiLoadingRef.current = false;
+			setAiLoading(false);
+		}
+	}, [query, products]);
+
 	useEffect(() => {
 		if (!onDecisionsChange) return;
 		const accepted = [...decisions.entries()]
@@ -497,19 +583,43 @@ export function ProductTable({
 		onDecisionsChange(accepted);
 	}, [decisions, onDecisionsChange]);
 
+	// When AI picks are active, float them to the top of the product list.
+	// useMemo is critical here — without it a new array is created every render,
+	// TanStack's autoResetPageIndex sees a new data reference and calls setPageIndex,
+	// which triggers a re-render, which creates another new array → infinite loop.
+	const sortedProducts = useMemo(
+		() =>
+			aiPicks.length > 0
+				? [
+						...aiPicks
+							.map(id => products.find(p => p.id === id))
+							.filter((p): p is SearchContentTourGroup => !!p),
+						...products.filter(p => !aiPicks.includes(p.id)),
+					]
+				: products,
+		[aiPicks, products],
+	);
+
 	const scrollRef = useRef<HTMLDivElement>(null);
 
 	const table = useReactTable({
-		data: products,
+		data: sortedProducts,
 		columns,
 		state: { sorting },
 		onSortingChange: setSorting,
 		getCoreRowModel: getCoreRowModel(),
 		getSortedRowModel: getSortedRowModel(),
 		getPaginationRowModel: getPaginationRowModel(),
+		autoResetPageIndex: false,
 		initialState: { pagination: { pageSize: PAGE_SIZE, pageIndex: 0 } },
-		meta: { decisions, decide, selected, toggleSelect },
+		meta: { decisions, decide, selected, toggleSelect, aiPicks, aiReasons },
 	});
+
+	// Jump to page 1 when AI picks arrive so recommended rows are visible
+	useEffect(() => {
+		if (aiPicks.length > 0) table.setPageIndex(0);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [aiPicks]);
 
 	const { pageIndex } = table.getState().pagination;
 	const totalPages = table.getPageCount();
@@ -520,6 +630,7 @@ export function ProductTable({
 
 	return (
 		<div className='flex flex-col'>
+			<style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 			{/* Summary / bulk action bar */}
 			<div className='flex items-center justify-between mb-3 min-h-[28px]'>
 				<div
@@ -565,23 +676,90 @@ export function ProductTable({
 					)}
 				</div>
 
-				{/* Bulk actions — only visible when rows are selected */}
-				{selectionCount > 0 && (
-					<div className='flex items-center gap-2'>
-						<button
-							onClick={() => bulkDecide('accepted')}
-							className='inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors cursor-pointer'
-							style={{
-								background:
-									'var(--color-semantic-surface-dark-success-1)',
-								color: '#fff',
-							}}
-						>
-							<CheckIcon className='h-3.5 w-3.5' />
-							Tag {selectionCount}
-						</button>
-					</div>
-				)}
+				{/* Right side: AI recommend button + bulk actions */}
+				<div className='flex items-center gap-2'>
+					{/* Recommend with AI — shown when no bulk selection is active */}
+					{selectionCount === 0 && query && (
+						<div className='flex flex-col items-end gap-1'>
+							<button
+								onClick={() => void recommendWithAI()}
+								disabled={aiLoading}
+								className='inline-flex items-center gap-1.5 rounded-full px-3 h-7 text-[12px] font-medium transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed'
+								style={
+									aiPicks.length > 0
+										? {
+												background:
+													'linear-gradient(135deg, #7c3aed, #4f46e5)',
+												color: '#fff',
+												boxShadow:
+													'0 1px 6px rgba(124,58,237,0.35)',
+											}
+										: {
+												background:
+													'linear-gradient(135deg, #ede9fe, #e0e7ff)',
+												color: '#5b21b6',
+												border: '1px solid rgba(124,58,237,0.2)',
+											}
+								}
+								title={aiContext || undefined}
+							>
+								{aiLoading ? (
+									<>
+										<span
+											style={{
+												display: 'inline-block',
+												width: 10,
+												height: 10,
+												borderRadius: '50%',
+												border: '1.5px solid currentColor',
+												borderTopColor: 'transparent',
+												animation:
+													'spin 0.7s linear infinite',
+											}}
+										/>
+										Analysing…
+									</>
+								) : (
+									<>
+										<SparklesIcon className='h-3 w-3' />
+										{aiPicks.length > 0
+											? `${aiPicks.length} AI picks · Redo`
+											: 'Recommend with AI'}
+									</>
+								)}
+							</button>
+							{aiError && (
+								<span
+									style={{
+										fontSize: '11px',
+										color: '#DC2626',
+									}}
+								>
+									{aiError}
+								</span>
+							)}
+						</div>
+					)}
+
+					{/* Bulk actions — only visible when rows are selected */}
+					{selectionCount > 0 && (
+						<div className='flex items-center gap-2'>
+							<button
+								onClick={() => bulkDecide('accepted')}
+								className='inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors cursor-pointer'
+								style={{
+									background:
+										'var(--color-semantic-surface-dark-success-1)',
+									color: '#fff',
+								}}
+							>
+								<CheckIcon className='h-3.5 w-3.5' />
+								Tag {selectionCount}
+							</button>
+						</div>
+					)}
+				</div>
+				{/* end right-side flex */}
 			</div>
 
 			{/* Table — horizontally scrollable with sticky actions column */}
@@ -638,6 +816,7 @@ export function ProductTable({
 							const decision = decisions.get(row.original.id);
 							const isAccepted = decision === 'accepted';
 							const isSelected = selected.has(row.original.id);
+							const isAiPick = aiPicks.includes(row.original.id);
 							return (
 								<TableRow
 									key={row.id}
@@ -645,12 +824,16 @@ export function ProductTable({
 									style={{
 										boxShadow: isAccepted
 											? 'inset 3px 0 0 var(--color-semantic-surface-dark-success-1)'
-											: undefined,
+											: isAiPick
+												? 'inset 3px 0 0 #7c3aed'
+												: undefined,
 										background: isSelected
 											? 'rgba(0,0,0,0.02)'
 											: isAccepted
 												? 'rgba(7,136,66,0.025)'
-												: undefined,
+												: isAiPick
+													? 'rgba(124,58,237,0.03)'
+													: undefined,
 									}}
 								>
 									{row.getVisibleCells().map(cell => (
@@ -664,12 +847,17 @@ export function ProductTable({
 											style={
 												cell.column.id === 'actions'
 													? {
+															// Must be fully opaque — semi-transparent
+															// backgrounds let scrolled content bleed
+															// through the sticky cell.
 															background:
 																isAccepted
-																	? 'rgba(7,136,66,0.025)'
-																	: isSelected
-																		? 'rgba(0,0,0,0.02)'
-																		: 'var(--background)',
+																	? '#f2fdf6'
+																	: isAiPick
+																		? '#f8f5ff'
+																		: isSelected
+																			? '#f9f9f9'
+																			: '#ffffff',
 														}
 													: undefined
 											}
